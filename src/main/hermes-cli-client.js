@@ -1,10 +1,90 @@
 'use strict';
+// @ts-check
 
+/**
+ * @typedef {Object} HermesSettings
+ * @property {string} [hermesPath]
+ * @property {string} [model]
+ */
+
+/**
+ * @typedef {Object} HermesCommandResult
+ * @property {boolean} ok
+ * @property {number | null} [code]
+ * @property {string} [stdout]
+ * @property {string} [stderr]
+ * @property {string} [combined]
+ * @property {string} [error]
+ */
+
+/**
+ * @typedef {Object} FileSystemLike
+ * @property {(filePath: string, mode?: number) => void} accessSync
+ * @property {{ X_OK: number }} constants
+ */
+
+/**
+ * @typedef {Object} PathLike
+ * @property {(...parts: string[]) => string} join
+ */
+
+/**
+ * @typedef {Object} OsLike
+ * @property {() => string} homedir
+ */
+
+/**
+ * @typedef {Object} ChildProcessLike
+ * @property {{ on(event: 'data', listener: (chunk: { toString(): string }) => void): void }} stdout
+ * @property {{ on(event: 'data', listener: (chunk: { toString(): string }) => void): void }} stderr
+ * @property {{
+ *   (event: 'error', listener: (error: Error) => void): void,
+ *   (event: 'close', listener: (code: number | null) => void): void
+ * }} on
+ */
+
+/**
+ * @callback SpawnLike
+ * @param {string} command
+ * @param {string[]} args
+ * @param {{ env: Record<string, string | undefined>, stdio: string[] }} options
+ * @returns {ChildProcessLike}
+ */
+
+/**
+ * @typedef {Object} HermesCliClientDeps
+ * @property {FileSystemLike} [fs]
+ * @property {PathLike} [path]
+ * @property {OsLike} [os]
+ * @property {SpawnLike} [spawn]
+ * @property {() => HermesSettings} [getSettings]
+ * @property {Record<string, string | undefined>} [env]
+ */
+
+/**
+ * @typedef {Object} HermesCliClient
+ * @property {() => string} findHermesBinary
+ * @property {() => Record<string, string | undefined>} getHermesEnv
+ * @property {(text: string, sessionId?: string) => Promise<HermesCommandResult>} runHermesChat
+ * @property {(output?: string) => { sessionId: string, reply: string }} parseHermesChatOutput
+ * @property {() => Promise<{ ok: true, version: string } | { ok: false, error: string }>} checkHealth
+ */
+
+/**
+ * Creates a thin wrapper around the Hermes CLI used by the Electron main process.
+ *
+ * @param {HermesCliClientDeps} [deps]
+ * @returns {HermesCliClient}
+ */
 function createHermesCliClient(deps = {}) {
-  const injectedFs = deps.fs || require('node:fs');
-  const injectedPath = deps.path || require('node:path');
-  const injectedOs = deps.os || require('node:os');
-  const injectedSpawn = deps.spawn || require('node:child_process').spawn;
+  /** @type {FileSystemLike} */
+  const injectedFs = deps.fs || require(/** @type {string} */ ('fs'));
+  /** @type {PathLike} */
+  const injectedPath = deps.path || require(/** @type {string} */ ('path'));
+  /** @type {OsLike} */
+  const injectedOs = deps.os || require(/** @type {string} */ ('os'));
+  /** @type {SpawnLike} */
+  const injectedSpawn = deps.spawn || require(/** @type {string} */ ('child_process')).spawn;
   const injectedEnv = deps.env || process.env;
   const injectedGetSettings = deps.getSettings || (() => ({}));
 
@@ -15,6 +95,7 @@ function createHermesCliClient(deps = {}) {
     return injectedEnv.HOME || injectedEnv.USERPROFILE || injectedOs.homedir();
   }
 
+  /** @returns {HermesSettings} */
   function getSettings() {
     return injectedGetSettings() || {};
   }
@@ -64,6 +145,7 @@ function createHermesCliClient(deps = {}) {
   }
 
   function getHermesEnv() {
+    /** @type {Record<string, string | undefined>} */
     const hermesEnv = { ...injectedEnv };
     const extraPaths = [
       injectedPath.join(homeDir(), '.local', 'bin'),
@@ -81,6 +163,10 @@ function createHermesCliClient(deps = {}) {
     return hermesEnv;
   }
 
+  /**
+   * @param {string[]} args
+   * @returns {Promise<HermesCommandResult>}
+   */
   function runCommand(args) {
     return new Promise((resolve) => {
       const child = injectedSpawn(findHermesBinary(), args, {
@@ -107,6 +193,11 @@ function createHermesCliClient(deps = {}) {
     });
   }
 
+  /**
+   * @param {string} text
+   * @param {string} [sessionId]
+   * @returns {Promise<HermesCommandResult>}
+   */
   function runHermesChat(text, sessionId = '') {
     const args = ['chat', '-q', text, '-Q'];
     const settings = getSettings();
@@ -120,6 +211,10 @@ function createHermesCliClient(deps = {}) {
     return runCommand(args);
   }
 
+  /**
+   * @param {string} [output]
+   * @returns {{ sessionId: string, reply: string }}
+   */
   function parseHermesChatOutput(output = '') {
     const lines = String(output || '').split('\n');
     let sessionId = '';
@@ -149,16 +244,17 @@ function createHermesCliClient(deps = {}) {
     return { sessionId, reply: replyLines.join('\n').trim() };
   }
 
+  /** @returns {Promise<{ ok: true, version: string } | { ok: false, error: string }>} */
   async function checkHealth() {
     try {
       const result = await runCommand(['--version']);
       if (!result.ok) {
         return { ok: false, error: result.error || 'hermes CLI 不可用，请确认已安装。' };
       }
-      const firstLine = result.stdout.trim().split('\n')[0].trim();
+      const firstLine = (result.stdout || '').trim().split('\n')[0].trim();
       return { ok: true, version: firstLine };
     } catch (error) {
-      return { ok: false, error: error.message };
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
 

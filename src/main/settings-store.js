@@ -1,5 +1,42 @@
-const DEFAULT_MODEL = process.env.HERMES_MODEL || 'hermes-agent';
+// @ts-check
 
+/** @type {any} */
+const processRef = typeof process === 'undefined' ? { env: {} } : process;
+const DEFAULT_MODEL = processRef.env.HERMES_MODEL || 'hermes-agent';
+
+/**
+ * @typedef {Object} DeskBuddySettings
+ * @property {string} model
+ * @property {string} petImage
+ * @property {string} thinkingImage
+ * @property {string} happyImage
+ * @property {number} petScale
+ * @property {string} petName
+ * @property {string} locale
+ * @property {string} hermesPath
+ * @property {string} cronDeliver
+ * @property {string} sessionId
+ * @property {boolean} alwaysOnTop
+ */
+
+/**
+ * @typedef {Object} SettingsStoreDeps
+ * @property {{ getPath(name: string): string }} app
+ * @property {{ readFileSync(filePath: string, encoding: string): string, mkdirSync(dirPath: string, options: { recursive: boolean }): void, writeFileSync(filePath: string, data: string): void }} fs
+ * @property {{ join(...parts: string[]): string, dirname(filePath: string): string }} path
+ */
+
+/**
+ * @typedef {Object} SettingsStore
+ * @property {() => string} getSettingsPath
+ * @property {(settings?: Record<string, any>) => DeskBuddySettings} normalizeSettings
+ * @property {() => DeskBuddySettings} readSettingsFromDisk
+ * @property {() => DeskBuddySettings} getSettings
+ * @property {(partialSettings?: Record<string, any>) => DeskBuddySettings} saveSettings
+ * @property {() => void} resetCache
+ */
+
+/** @type {DeskBuddySettings} */
 const DEFAULT_SETTINGS = {
   model: DEFAULT_MODEL,
   petImage: '',
@@ -14,13 +51,24 @@ const DEFAULT_SETTINGS = {
   alwaysOnTop: true,
 };
 
+/**
+ * Creates a cached settings store backed by Electron's userData directory.
+ *
+ * @param {SettingsStoreDeps} deps
+ * @returns {SettingsStore}
+ */
 function createSettingsStore({ app, fs, path }) {
+  /** @type {DeskBuddySettings | null} */
   let cachedSettings = null;
 
   function getSettingsPath() {
     return path.join(app.getPath('userData'), 'pet-settings.json');
   }
 
+  /**
+   * @param {Record<string, any>} [settings]
+   * @returns {DeskBuddySettings}
+   */
   function normalizeSettings(settings = {}) {
     return {
       model: String(settings.model || DEFAULT_SETTINGS.model).trim() || DEFAULT_SETTINGS.model,
@@ -51,6 +99,10 @@ function createSettingsStore({ app, fs, path }) {
     return { ...cachedSettings };
   }
 
+  /**
+   * @param {Record<string, any>} [partialSettings]
+   * @returns {DeskBuddySettings}
+   */
   function saveSettings(partialSettings = {}) {
     cachedSettings = normalizeSettings({ ...getSettings(), ...partialSettings });
     fs.mkdirSync(path.dirname(getSettingsPath()), { recursive: true });

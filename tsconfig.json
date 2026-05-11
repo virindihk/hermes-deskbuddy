@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "allowJs": true,
-    "checkJs": false,
+    "checkJs": true,
     "noEmit": true,
     "target": "ES2022",
     "module": "Node16",
@@ -14,9 +14,10 @@
     "lib": ["ES2022", "DOM"]
   },
   "include": [
-    "src/**/*.js",
-    "scripts/**/*.js",
-    "test/**/*.js",
+    "src/main/settings-store.js",
+    "src/main/hermes-cli-client.js",
+    "src/renderer/modules/pet-hit-test.js",
+    "src/renderer/modules/panel-layout.js",
     "src/types/**/*.d.ts"
   ],
   "exclude": [

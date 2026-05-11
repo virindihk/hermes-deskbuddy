@@ -1,14 +1,42 @@
+// @ts-check
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
     module.exports = factory();
   } else {
-    root.DeskBuddyPetHitTest = factory();
+    /** @type {any} */ (root).DeskBuddyPetHitTest = factory();
   }
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
+  /**
+   * @typedef {Object} RectLike
+   * @property {number} left
+   * @property {number} top
+   * @property {number} width
+   * @property {number} height
+   * @property {number} [right]
+   * @property {number} [bottom]
+   */
+
+  /**
+   * @typedef {Object} ImageSize
+   * @property {number} width
+   * @property {number} height
+   */
+
+  /**
+   * @typedef {Object} ImagePoint
+   * @property {number} x
+   * @property {number} y
+   */
+
   const PET_HIT_ALPHA_THRESHOLD = 24;
 
+  /**
+   * @param {RectLike | null | undefined} rect
+   * @returns {(RectLike & { right: number, bottom: number }) | null}
+   */
   function getRectBounds(rect) {
     if (!rect) return null;
 
@@ -30,6 +58,12 @@
     };
   }
 
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {RectLike | null | undefined} rect
+   * @returns {boolean}
+   */
   function pointInRect(x, y, rect) {
     const bounds = getRectBounds(rect);
     if (!bounds) return false;
@@ -37,6 +71,16 @@
     return x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom;
   }
 
+  /**
+   * Maps a window-space point to an object-fit: contain image pixel coordinate.
+   * Returns null when the point falls in transparent letterbox/pillarbox space.
+   *
+   * @param {number} x
+   * @param {number} y
+   * @param {RectLike | null | undefined} rect
+   * @param {ImageSize | null | undefined} imageSize
+   * @returns {ImagePoint | null}
+   */
   function mapPointToContainedImage(x, y, rect, imageSize) {
     const bounds = getRectBounds(rect);
     if (!bounds || !pointInRect(x, y, bounds)) return null;
@@ -74,10 +118,21 @@
     };
   }
 
+  /**
+   * @param {number} alpha
+   * @param {number} [threshold]
+   * @returns {boolean}
+   */
   function isAlphaHit(alpha, threshold = PET_HIT_ALPHA_THRESHOLD) {
     return Number(alpha) >= threshold;
   }
 
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {RectLike | null | undefined} rect
+   * @returns {boolean}
+   */
   function isFallbackShapeHit(x, y, rect) {
     const bounds = getRectBounds(rect);
     if (!bounds || !pointInRect(x, y, bounds)) return false;

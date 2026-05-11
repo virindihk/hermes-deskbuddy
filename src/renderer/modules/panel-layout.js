@@ -1,11 +1,63 @@
+// @ts-check
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
     module.exports = factory();
   } else {
-    root.DeskBuddyPanelLayout = factory();
+    /** @type {any} */ (root).DeskBuddyPanelLayout = factory();
   }
 }(typeof window !== 'undefined' ? window : globalThis, function () {
   'use strict';
+
+  /**
+   * @typedef {Object} PanelLayoutInput
+   * @property {number} [scale]
+   * @property {number} [panelWidth]
+   * @property {number} [panelHeight]
+   */
+
+  /**
+   * @typedef {Object} PanelLayoutResult
+   * @property {number} desiredBottom
+   * @property {number} petVisualSize
+   * @property {number} requiredWidth
+   * @property {number} requiredHeight
+   */
+
+  /**
+   * @typedef {Object} PanelSizeInput
+   * @property {number} [panelWidth]
+   * @property {number} [panelHeight]
+   * @property {number} [targetWidth]
+   * @property {number} [targetHeight]
+   * @property {number} [desiredBottom]
+   */
+
+  /**
+   * @typedef {Object} PanelSizeResult
+   * @property {number} panelWidth
+   * @property {number} panelHeight
+   * @property {number} availablePanelWidth
+   * @property {number} availablePanelHeight
+   */
+
+  /**
+   * @typedef {Object} WindowBounds
+   * @property {number} x
+   * @property {number} y
+   * @property {number} width
+   * @property {number} height
+   */
+
+  /**
+   * @typedef {Object} ScreenBounds
+   * @property {number} [availLeft]
+   * @property {number} [availTop]
+   */
+
+  /**
+   * @typedef {WindowBounds & { deltaWidth: number, deltaHeight: number, shouldResize: boolean }} WindowResizePlan
+   */
 
   const PET_BASE_SIZE = 138;
   const PET_RIGHT_OFFSET = 34;
@@ -17,15 +69,28 @@
   const MIN_PANEL_WIDTH = 260;
   const MIN_PANEL_HEIGHT = 200;
 
+  /**
+   * @param {unknown} value
+   * @param {number} fallback
+   * @returns {number}
+   */
   function toFiniteNumber(value, fallback) {
     const number = Number(value);
     return Number.isFinite(number) ? number : fallback;
   }
 
+  /**
+   * @param {number} [scale]
+   * @returns {number}
+   */
   function getPetVisualSize(scale = 1) {
     return PET_BASE_SIZE * toFiniteNumber(scale, 1);
   }
 
+  /**
+   * @param {number} [scale]
+   * @returns {number}
+   */
   function getDesiredPanelBottom(scale = 1) {
     return Math.max(
       MIN_PANEL_BOTTOM,
@@ -33,6 +98,10 @@
     );
   }
 
+  /**
+   * @param {PanelLayoutInput} [input]
+   * @returns {PanelLayoutResult}
+   */
   function getPanelLayout({ scale = 1, panelWidth = 0, panelHeight = 0 } = {}) {
     const petVisualSize = getPetVisualSize(scale);
     const desiredBottom = getDesiredPanelBottom(scale);
@@ -45,6 +114,10 @@
     };
   }
 
+  /**
+   * @param {PanelSizeInput} [input]
+   * @returns {PanelSizeResult}
+   */
   function clampPanelSize({ panelWidth = 0, panelHeight = 0, targetWidth = 0, targetHeight = 0, desiredBottom = MIN_PANEL_BOTTOM } = {}) {
     const availablePanelWidth = Math.max(
       MIN_PANEL_WIDTH,
@@ -63,6 +136,13 @@
     };
   }
 
+  /**
+   * Plans an upward/leftward BrowserWindow expansion while keeping the pet's
+   * bottom-right visual anchor stable when possible.
+   *
+   * @param {{ bounds?: Partial<WindowBounds> | null, requiredWidth?: number, requiredHeight?: number, screen?: ScreenBounds }} [input]
+   * @returns {WindowResizePlan}
+   */
   function getWindowResizePlan({ bounds, requiredWidth = 0, requiredHeight = 0, screen = {} } = {}) {
     const currentBounds = {
       x: toFiniteNumber(bounds && bounds.x, 0),
