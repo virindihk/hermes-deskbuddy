@@ -630,6 +630,7 @@ function setSettingsVisible(visible) {
     chatPanel.classList.add('hidden');
     setCronVisible(false);
     setPetState(PET_STATES.LISTENING);
+    updatePanelOffsets();
     setTimeout(() => modelInput.focus(), 50);
     lastMouseCapture = true;
     window.desktopPet.setIgnoreMouseEvents(false);
@@ -647,6 +648,7 @@ function setCronVisible(visible) {
     chatPanel.classList.add('hidden');
     settingsPanel.classList.add('hidden');
     setPetState(PET_STATES.LISTENING);
+    updatePanelOffsets();
     loadCrons();
     lastMouseCapture = true;
     window.desktopPet.setIgnoreMouseEvents(false);
@@ -838,6 +840,11 @@ async function loadSettings() {
 function applyPetScale(scale) {
   const s = Math.min(300, Math.max(50, Number(scale) || 100));
   pet.style.setProperty('--pet-scale', (s / 100).toString());
+  if (!chatPanel.classList.contains('hidden') ||
+      !settingsPanel.classList.contains('hidden') ||
+      !cronPanel.classList.contains('hidden')) {
+    updatePanelOffsets();
+  }
 }
 
 function updatePetName(name) {
