@@ -17,7 +17,8 @@
 ## 启动开发
 
 ```bash
-cd ~/Desktop/hermes-desktop-pet
+git clone https://github.com/virindihk/hermes-desktop-pet.git
+cd hermes-desktop-pet
 npm install
 npm start
 ```
@@ -40,7 +41,7 @@ npm run dist:mac
 
 打包后的文件在 `dist/` 目录：
 - `dist/mac-arm64/Hermes Pet.app` — 可直接双击打开
-- `dist/Hermes Pet-0.1.0-arm64.dmg` — 安装包（拖拽进 Applications）
+- `dist/Hermes Pet-0.1.1-arm64.dmg` — 安装包（拖拽进 Applications）
 
 > 第一次打开可能因为未签名被系统拦截，右键 → 打开 即可。
 
