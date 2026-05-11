@@ -1,0 +1,54 @@
+{
+  "name": "hermes-pet",
+  "version": "0.1.0",
+  "description": "A tiny desktop pet that chats through Hermes Agent.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "test": "node --test",
+    "smoke": "node scripts/smoke-hermes.js"
+  },
+  "keywords": [
+    "electron",
+    "desktop-pet",
+    "hermes-agent"
+  ],
+  "author": "Leo + Gege",
+  "license": "UNLICENSED",
+  "build": {
+    "appId": "com.leo.hermes-pet",
+    "productName": "Hermes Pet",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["arm64"]
+        }
+      ],
+      "category": "public.app-category.utilities",
+      "icon": "build/icon.icns"
+    },
+    "dmg": {
+      "sign": false
+    }
+  },
+  "devDependencies": {
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12"
+  }
+}
