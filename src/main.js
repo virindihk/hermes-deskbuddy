@@ -19,6 +19,48 @@ const DEFAULT_SETTINGS = {
 let mainWindow;
 let chatVisible = false;
 let cachedSettings = null;
+let hermesBinaryPath = '';
+
+function findHermesBinary() {
+  if (hermesBinaryPath) return hermesBinaryPath;
+  const candidates = [
+    path.join(process.env.HOME || os.homedir(), '.local', 'bin', 'hermes'),
+    '/opt/homebrew/bin/hermes',
+    '/usr/local/bin/hermes',
+    '/usr/bin/hermes',
+    'hermes',
+  ];
+  for (const p of candidates) {
+    if (p === 'hermes') {
+      hermesBinaryPath = 'hermes';
+      return hermesBinaryPath;
+    }
+    try {
+      fs.accessSync(p, fs.constants.X_OK);
+      hermesBinaryPath = p;
+      return hermesBinaryPath;
+    } catch (_e) {}
+  }
+  hermesBinaryPath = 'hermes';
+  return hermesBinaryPath;
+}
+
+function getHermesEnv() {
+  const env = { ...process.env };
+  const extraPaths = [
+    path.join(process.env.HOME || os.homedir(), '.local', 'bin'),
+    '/opt/homebrew/bin',
+    '/usr/local/bin',
+    '/usr/bin',
+    '/bin',
+  ];
+  const currentPath = env.PATH || '';
+  const missing = extraPaths.filter((p) => !currentPath.includes(p)).join(':');
+  if (missing) {
+    env.PATH = missing + ':' + currentPath;
+  }
+  return env;
+}
 
 function getSettingsPath() {
   return path.join(app.getPath('userData'), 'pet-settings.json');
@@ -303,8 +345,8 @@ ipcMain.handle('pet:create-cron', async (_event, payload = {}) => {
     if (name) args.push('--name', name);
     args.push(schedule, prompt);
 
-    const child = spawn('hermes', args, {
-      env: process.env,
+    const child = spawn(findHermesBinary(), args, {
+      env: getHermesEnv(),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
@@ -346,8 +388,8 @@ ipcMain.handle('pet:get-window-bounds', () => {
 ipcMain.handle('hermes:health', async () => {
   try {
     const result = await new Promise((resolve) => {
-      const child = spawn('hermes', ['--version'], {
-        env: process.env,
+      const child = spawn(findHermesBinary(), ['--version'], {
+        env: getHermesEnv(),
         stdio: ['ignore', 'pipe', 'pipe'],
       });
       let stdout = '';
@@ -379,8 +421,8 @@ function runHermesChat(text, sessionId = '') {
       args.push('--resume', sessionId);
     }
 
-    const child = spawn('hermes', args, {
-      env: process.env,
+    const child = spawn(findHermesBinary(), args, {
+      env: getHermesEnv(),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
@@ -529,8 +571,8 @@ function parseCronList(output) {
 ipcMain.handle('hermes:list-crons', async () => {
   try {
     const result = await new Promise((resolve) => {
-      const child = spawn('hermes', ['cron', 'list'], {
-        env: process.env,
+      const child = spawn(findHermesBinary(), ['cron', 'list'], {
+        env: getHermesEnv(),
         stdio: ['ignore', 'pipe', 'pipe'],
       });
       let stdout = '';
@@ -635,8 +677,8 @@ ipcMain.handle('hermes:list-providers', async () => {
 ipcMain.handle('hermes:get-model-config', async () => {
   try {
     const result = await new Promise((resolve) => {
-      const child = spawn('hermes', ['config', 'show'], {
-        env: process.env,
+      const child = spawn(findHermesBinary(), ['config', 'show'], {
+        env: getHermesEnv(),
         stdio: ['ignore', 'pipe', 'pipe'],
       });
       let stdout = '';
@@ -697,8 +739,8 @@ ipcMain.handle('hermes:set-model', async (_event, model) => {
     // Set provider if specified
     if (provider) {
       const providerResult = await new Promise((resolve) => {
-        const child = spawn('hermes', ['config', 'set', 'model.provider', provider], {
-          env: process.env,
+        const child = spawn(findHermesBinary(), ['config', 'set', 'model.provider', provider], {
+          env: getHermesEnv(),
           stdio: ['ignore', 'pipe', 'pipe'],
         });
         let stdout = '';
@@ -716,8 +758,8 @@ ipcMain.handle('hermes:set-model', async (_event, model) => {
 
     // Set model default
     const modelResult = await new Promise((resolve) => {
-      const child = spawn('hermes', ['config', 'set', 'model.default', modelName], {
-        env: process.env,
+      const child = spawn(findHermesBinary(), ['config', 'set', 'model.default', modelName], {
+        env: getHermesEnv(),
         stdio: ['ignore', 'pipe', 'pipe'],
       });
       let stdout = '';
