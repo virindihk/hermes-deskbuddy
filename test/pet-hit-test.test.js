@@ -1,7 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
 
 const hitTest = require('../src/renderer/modules/pet-hit-test');
+const modulePath = path.resolve(__dirname, '../src/renderer/modules/pet-hit-test.js');
 
 const rect = { left: 10, top: 20, width: 200, height: 200 };
 
@@ -35,4 +39,15 @@ test('fallback ellipse rejects obvious corner transparency and accepts center', 
   assert.equal(hitTest.isFallbackShapeHit(rect.left, rect.top, rect), false);
   assert.equal(hitTest.isFallbackShapeHit(rect.left + rect.width, rect.top + rect.height, rect), false);
   assert.equal(hitTest.isFallbackShapeHit(rect.left + rect.width / 2, rect.top + rect.height / 2, rect), true);
+});
+
+test('pet hit-test module is exposed as a browser global', () => {
+  const source = fs.readFileSync(modulePath, 'utf8');
+  const sandbox = { globalThis: {} };
+
+  vm.runInNewContext(source, sandbox, { filename: modulePath });
+
+  assert.equal(sandbox.globalThis.DeskBuddyPetHitTest.isAlphaHit(24), true);
+  const mapped = sandbox.globalThis.DeskBuddyPetHitTest.mapPointToContainedImage(110, 120, rect, { width: 100, height: 200 });
+  assert.deepEqual(JSON.parse(JSON.stringify(mapped)), { x: 50, y: 100 });
 });

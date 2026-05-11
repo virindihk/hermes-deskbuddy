@@ -43,6 +43,33 @@ test('normalizeSettings trims string fields and clamps petScale', () => {
   assert.equal(store.normalizeSettings({ petScale: 10 }).petScale, 50);
 });
 
+test('normalizeSettings keeps custom pet image fields, pet name, cron delivery, and always-on-top preference', () => {
+  const { store } = createTempStore();
+
+  assert.deepEqual(store.normalizeSettings({
+    petImage: '  /pets/default.png  ',
+    thinkingImage: '  /pets/thinking.webp  ',
+    happyImage: '  /pets/happy.gif  ',
+    petName: '  格格  ',
+    locale: 'ja',
+    cronDeliver: '  origin  ',
+    alwaysOnTop: false,
+  }), {
+    ...DEFAULT_SETTINGS,
+    petImage: '/pets/default.png',
+    thinkingImage: '/pets/thinking.webp',
+    happyImage: '/pets/happy.gif',
+    petName: '格格',
+    locale: 'ja',
+    cronDeliver: 'origin',
+    alwaysOnTop: false,
+  });
+
+  assert.equal(store.normalizeSettings({ petName: '   ' }).petName, DEFAULT_SETTINGS.petName);
+  assert.equal(store.normalizeSettings({ locale: 'invalid' }).locale, DEFAULT_SETTINGS.locale);
+  assert.equal(store.normalizeSettings({ alwaysOnTop: undefined }).alwaysOnTop, true);
+});
+
 test('readSettingsFromDisk returns default settings when settings file is missing or invalid JSON', () => {
   const { userData, store } = createTempStore();
 
