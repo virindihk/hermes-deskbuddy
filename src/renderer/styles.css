@@ -335,6 +335,7 @@ textarea {
   grid-template-rows: auto auto;
   gap: 6px 8px;
   align-items: center;
+  min-height: 64px;
 }
 
 .chat-header .title {

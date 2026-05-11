@@ -385,14 +385,12 @@ ipcMain.on('pet:set-ignore-mouse-events', (_event, ignore) => {
 
 ipcMain.on('pet:set-window-bounds', (_event, x, y, width, height) => {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-  const display = screen.getPrimaryDisplay();
-  const maxW = display.workAreaSize.width;
-  const maxH = display.workAreaSize.height;
-  // Keep window fully on-screen so top handles and rounded corners never disappear
-  x = Math.max(0, Math.min(x, maxW - 320));
-  y = Math.max(0, Math.min(y, maxH - 380));
-  const newW = Math.max(320, Math.min(maxW - x, Math.round(width)));
-  const newH = Math.max(380, Math.min(maxH - y, Math.round(height)));
+  const { workArea } = screen.getPrimaryDisplay();
+  // Keep window inside the actual work area (accounts for menu bar / dock)
+  x = Math.max(workArea.x, Math.min(x, workArea.x + workArea.width - 320));
+  y = Math.max(workArea.y, Math.min(y, workArea.y + workArea.height - 380));
+  const newW = Math.max(320, Math.min(workArea.x + workArea.width - x, Math.round(width)));
+  const newH = Math.max(380, Math.min(workArea.y + workArea.height - y, Math.round(height)));
   mainWindow.setBounds({ x: Math.round(x), y: Math.round(y), width: newW, height: newH });
 });
 
