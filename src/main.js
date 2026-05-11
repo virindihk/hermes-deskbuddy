@@ -16,6 +16,7 @@ const DEFAULT_SETTINGS = {
   hermesPath: '',
   cronDeliver: 'local',
   sessionId: '',
+  alwaysOnTop: true,
 };
 
 let mainWindow;
@@ -98,6 +99,7 @@ function normalizeSettings(settings = {}) {
     hermesPath: String(settings.hermesPath || '').trim(),
     cronDeliver: String(settings.cronDeliver || DEFAULT_SETTINGS.cronDeliver).trim() || DEFAULT_SETTINGS.cronDeliver,
     sessionId: String(settings.sessionId || '').trim(),
+    alwaysOnTop: settings.alwaysOnTop !== undefined ? Boolean(settings.alwaysOnTop) : DEFAULT_SETTINGS.alwaysOnTop,
   };
 }
 
@@ -157,6 +159,7 @@ const MENU_I18N = {
     customImage: '自定义图片...',
     resetImage: '恢复默认图片',
     cronManager: 'Cron 管理',
+    alwaysOnTop: '总在最前端',
     language: '语言',
     quit: '退出',
   },
@@ -165,6 +168,7 @@ const MENU_I18N = {
     customImage: 'Custom Image...',
     resetImage: 'Reset Image',
     cronManager: 'Cron Manager',
+    alwaysOnTop: 'Always on Top',
     language: 'Language',
     quit: 'Quit',
   },
@@ -173,6 +177,7 @@ const MENU_I18N = {
     customImage: '画像を変更...',
     resetImage: 'デフォルトに戻す',
     cronManager: 'Cron管理',
+    alwaysOnTop: '常に前面に表示',
     language: '言語',
     quit: '終了',
   },
@@ -181,6 +186,7 @@ const MENU_I18N = {
     customImage: '이미지 변경...',
     resetImage: '기본 이미지로',
     cronManager: 'Cron 관리',
+    alwaysOnTop: '항상 위에 표시',
     language: '언어',
     quit: '종료',
   },
@@ -201,6 +207,19 @@ function openSettingsMenu(point = {}) {
     {
       label: t.cronManager,
       click: () => mainWindow.webContents.send('cron:open'),
+    },
+    { type: 'separator' },
+    {
+      label: t.alwaysOnTop,
+      type: 'checkbox',
+      checked: settings.alwaysOnTop !== false,
+      click: (menuItem) => {
+        const onTop = menuItem.checked;
+        saveSettings({ alwaysOnTop: onTop });
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.setAlwaysOnTop(onTop);
+        }
+      },
     },
     { type: 'separator' },
     {
@@ -243,6 +262,7 @@ ipcMain.handle('hermes:detect-path', async () => {
 function createWindow() {
   const display = screen.getPrimaryDisplay();
   const { width, height } = display.workAreaSize;
+  const settings = getSettings();
 
   mainWindow = new BrowserWindow({
     width: 420,
@@ -253,7 +273,7 @@ function createWindow() {
     transparent: true,
     resizable: false,
     hasShadow: false,
-    alwaysOnTop: true,
+    alwaysOnTop: settings.alwaysOnTop !== false,
     skipTaskbar: false,
     title: 'DeskBuddy',
     webPreferences: {
