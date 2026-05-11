@@ -255,7 +255,7 @@ function createWindow() {
     hasShadow: false,
     alwaysOnTop: true,
     skipTaskbar: false,
-    title: 'pet',
+    title: 'DeskBuddy',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

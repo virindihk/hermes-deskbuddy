@@ -1,5 +1,5 @@
 {
-  "name": "hermes-pet",
+  "name": "hermes-deskbuddy",
   "version": "0.1.2",
   "description": "A tiny desktop pet that chats through Hermes Agent.",
   "main": "src/main.js",
@@ -19,8 +19,8 @@
   "author": "Leo + Gege",
   "license": "UNLICENSED",
   "build": {
-    "appId": "com.leo.hermes-pet",
-    "productName": "Hermes Pet",
+    "appId": "com.leo.hermes-deskbuddy",
+    "productName": "Hermes DeskBuddy",
     "directories": {
       "output": "dist"
     },

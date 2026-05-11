@@ -1,4 +1,4 @@
-# Hermes Pet
+# Hermes DeskBuddy
 
 一个桌面小宠物，集成 Hermes Agent CLI，支持聊天、定时任务管理、多语言和多模型切换。
 
@@ -17,8 +17,8 @@
 ## 启动开发
 
 ```bash
-git clone https://github.com/virindihk/hermes-desktop-pet.git
-cd hermes-desktop-pet
+git clone https://github.com/virindihk/hermes-deskbuddy.git
+cd hermes-deskbuddy
 npm install
 npm start
 ```
@@ -40,8 +40,8 @@ npm run dist:mac
 ```
 
 打包后的文件在 `dist/` 目录：
-- `dist/mac-arm64/Hermes Pet.app` — 可直接双击打开
-- `dist/Hermes Pet-0.1.1-arm64.dmg` — 安装包（拖拽进 Applications）
+- `dist/mac-arm64/Hermes DeskBuddy.app` — 可直接双击打开
+- `dist/Hermes DeskBuddy-0.1.2-arm64.dmg` — 安装包（拖拽进 Applications）
 
 > 第一次打开可能因为未签名被系统拦截，右键 → 打开 即可。
 
