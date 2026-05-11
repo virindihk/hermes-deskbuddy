@@ -36,6 +36,7 @@ All three change the startup path. That is too much risk for this stage because 
 
 `src/renderer/index.html` loads scripts directly:
 
+- `modules/i18n.js`
 - `modules/pet-hit-test.js`
 - `modules/panel-layout.js`
 - `renderer.js`

@@ -16,6 +16,7 @@
   "include": [
     "src/main/settings-store.js",
     "src/main/hermes-cli-client.js",
+    "src/renderer/modules/i18n.js",
     "src/renderer/modules/pet-hit-test.js",
     "src/renderer/modules/panel-layout.js",
     "src/types/**/*.d.ts"

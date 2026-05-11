@@ -19,6 +19,7 @@ test('Electron app files exist', () => {
     'src/preload.js',
     'src/renderer/index.html',
     'src/renderer/renderer.js',
+    'src/renderer/modules/i18n.js',
     'src/renderer/modules/pet-hit-test.js',
     'src/renderer/modules/panel-layout.js',
     'src/renderer/styles.css',
@@ -31,7 +32,8 @@ test('renderer index loads browser modules before renderer entrypoint', () => {
   const html = readText('src/renderer/index.html');
   const scripts = [...html.matchAll(/<script\s+[^>]*src="([^"]+)"/g)].map((match) => match[1]);
 
-  assert.deepEqual(scripts.slice(-3), [
+  assert.deepEqual(scripts.slice(-4), [
+    'modules/i18n.js',
     'modules/pet-hit-test.js',
     'modules/panel-layout.js',
     'renderer.js',
