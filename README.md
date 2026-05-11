@@ -1,5 +1,7 @@
 # Hermes DeskBuddy
 
+**简体中文** | [English](#english)
+
 一个桌面小宠物，集成 Hermes Agent CLI，支持聊天、定时任务管理、多语言和多模型切换。
 
 ![pet icon](build/icon_source.png)
@@ -86,6 +88,102 @@ hermes chat -q "hello"
 │       └── styles.css       # 样式与动画
 ├── avatar/                  # 默认状态图片素材
 ├── build/                   # 应用图标
+└── package.json
+```
+
+---
+
+<a name="english"></a>
+**[简体中文](#hermes-deskbuddy)** | English
+
+# Hermes DeskBuddy
+
+A tiny desktop pet that integrates with the Hermes Agent CLI. Chat, manage scheduled tasks, switch languages, and toggle models — all from a floating transparent companion.
+
+![pet icon](build/icon_source.png)
+
+## Features
+
+- 🤖 **AI Chat** — Direct connection to Hermes Agent with streaming output and Markdown rendering
+- 🐱 **State Animations** — idle / thinking / happy states, each with a customizable image
+- 🌍 **Multi-language** — Right-click menu to switch between 中文 / English / 日本語 / 한국어
+- ⚙️ **Settings Panel** — Name, scale (50%–300%), state images, model provider
+- ⏰ **Cron Manager** — Dedicated panel to view and create scheduled tasks
+- 💬 **Session Management** — Switch between past sessions or start a new one
+- 🖱️ **Transparent & Float** — Click-through, draggable, rounded panels
+
+## Development
+
+```bash
+git clone https://github.com/virindihk/hermes-deskbuddy.git
+cd hermes-deskbuddy
+npm install
+npm start
+```
+
+If Electron downloads are slow:
+
+```bash
+ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npm install
+```
+
+## Build (macOS)
+
+```bash
+# Build .app (run directly)
+npm run pack
+
+# Build .dmg installer
+npm run dist:mac
+```
+
+Output files are in `dist/`:
+- `dist/mac-arm64/Hermes DeskBuddy.app` — Double-click to run
+- `dist/Hermes DeskBuddy-0.1.2-arm64.dmg` — Drag into Applications
+
+> On first launch macOS may block the unsigned app. Right-click → Open to allow.
+
+## Hermes Dependency
+
+You need [Hermes Agent](https://github.com/NousResearch/hermes-agent) installed locally (it provides the `hermes` CLI).
+
+Verify the connection:
+
+```bash
+hermes chat -q "hello"
+```
+
+## Usage
+
+| Action | Description |
+|--------|-------------|
+| Left-click pet | Open / close chat panel |
+| Right-click pet | Open menu (Settings / Cron / Language / Quit) |
+| Drag pet | Move the window |
+| Enter | Send message |
+| Shift+Enter | New line |
+| Drag panel corners | Resize the chat panel |
+
+## Settings
+
+- **Name** — Display name of the pet (default: Hermes)
+- **Size** — 50% ~ 300% scale
+- **State Images** — Set images for idle / thinking / happy states
+- **Provider / Model** — Reads API keys from `~/.hermes/.env`, one-click switching
+- **Cron Manager** — View existing cron jobs or create new ones
+
+## File Structure
+
+```
+├── src/
+│   ├── main.js              # Electron main process
+│   ├── preload.js           # IPC bridge
+│   └── renderer/
+│       ├── index.html       # UI structure
+│       ├── renderer.js      # Renderer logic
+│       └── styles.css       # Styles & animations
+├── avatar/                  # Default state image assets
+├── build/                   # App icons
 └── package.json
 ```
 
