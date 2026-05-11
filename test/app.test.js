@@ -30,17 +30,21 @@ test('renderer uses desktopPet bridge instead of Node integration', () => {
   assert.doesNotMatch(renderer, /require\(/);
 });
 
-test('main process talks to Hermes through the CLI', () => {
+test('main process talks to Hermes through the CLI module', () => {
   const main = fs.readFileSync(path.join(root, 'src/main.js'), 'utf8');
+  const client = fs.readFileSync(path.join(root, 'src/main/hermes-cli-client.js'), 'utf8');
 
   assert.match(main, /const \{ spawn \} = require\('child_process'\)/);
-  assert.match(main, /function findHermesBinary\(\)/);
-  assert.match(main, /ipcMain\.handle\('hermes:health'/);
-  assert.match(main, /spawn\(findHermesBinary\(\), \['--version'\]/);
-  assert.match(main, /function runHermesChat\(text, sessionId = ''\)/);
-  assert.match(main, /const args = \['chat', '-q', text, '-Q'\]/);
-  assert.match(main, /args\.push\('-m', model\)/);
-  assert.match(main, /spawn\(findHermesBinary\(\), args/);
+  assert.match(main, /const \{ createHermesCliClient \} = require\('\.\/main\/hermes-cli-client'\)/);
+  assert.match(main, /const hermesCliClient = createHermesCliClient\(/);
+  assert.match(main, /hermesCliClient\.checkHealth\(\)/);
+  assert.match(main, /hermesCliClient\.runHermesChat\(cleanText, currentSessionId\)/);
+  assert.match(main, /hermesCliClient\.parseHermesChatOutput\(result\.stdout\)/);
+  assert.doesNotMatch(main, /result\.combined \|\| result\.stdout/);
+  assert.doesNotMatch(main, /function findHermesBinary\(\)/);
+  assert.doesNotMatch(main, /function runHermesChat\(text, sessionId = ''\)/);
+  assert.match(client, /const args = \['chat', '-q', text, '-Q'\]/);
+  assert.match(client, /args\.push\('-m', model\)/);
   assert.doesNotMatch(main, /127\.0\.0\.1:8642/);
   assert.doesNotMatch(main, /\/v1\/chat\/completions/);
 });
@@ -146,22 +150,26 @@ test('right-click opens a pet settings menu through the preload bridge', () => {
   assert.match(main, /settings:open/);
 });
 
-test('pet settings support custom image and model persistence', () => {
+test('pet settings support custom image and model persistence through settings store module', () => {
   const html = fs.readFileSync(path.join(root, 'src/renderer/index.html'), 'utf8');
   const renderer = fs.readFileSync(path.join(root, 'src/renderer/renderer.js'), 'utf8');
   const preload = fs.readFileSync(path.join(root, 'src/preload.js'), 'utf8');
   const main = fs.readFileSync(path.join(root, 'src/main.js'), 'utf8');
+  const settingsStore = fs.readFileSync(path.join(root, 'src/main/settings-store.js'), 'utf8');
 
   assert.match(html, /id="petImage"/);
   assert.match(html, /id="modelInput"/);
-  assert.match(main, /pet-settings\.json/);
-  assert.match(main, /app\.getPath\('userData'\)/);
+  assert.match(main, /const \{ createSettingsStore \} = require\('\.\/main\/settings-store'\)/);
+  assert.match(main, /const settingsStore = createSettingsStore\(\{ app, fs, path \}\)/);
+  assert.match(settingsStore, /pet-settings\.json/);
+  assert.match(settingsStore, /app\.getPath\('userData'\)/);
   assert.match(main, /ipcMain\.handle\('pet:get-settings'/);
   assert.match(main, /ipcMain\.handle\('pet:save-settings'/);
   assert.match(main, /ipcMain\.handle\('pet:choose-image'/);
-  assert.match(main, /model:\s*String\(settings\.model \|\| DEFAULT_SETTINGS\.model\)\.trim\(\) \|\| DEFAULT_SETTINGS\.model/);
-  assert.match(main, /cachedSettings = normalizeSettings\(\{ \.\.\.getSettings\(\), \.\.\.partialSettings \}\)/);
-  assert.match(main, /const model = getSettings\(\)\.model/);
+  assert.doesNotMatch(main, /function normalizeSettings\(settings = \{\}\)/);
+  assert.doesNotMatch(main, /let cachedSettings = null/);
+  assert.match(settingsStore, /model:\s*String\(settings\.model \|\| DEFAULT_SETTINGS\.model\)\.trim\(\) \|\| DEFAULT_SETTINGS\.model/);
+  assert.match(main, /hermesCliClient\.runHermesChat\(cleanText, currentSessionId\)/);
   assert.match(preload, /getSettings/);
   assert.match(preload, /saveSettings/);
   assert.match(preload, /choosePetImage/);

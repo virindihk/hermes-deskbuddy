@@ -4,125 +4,22 @@ const path = require('path');
 const os = require('os');
 const { spawn } = require('child_process');
 
-const DEFAULT_MODEL = process.env.HERMES_MODEL || 'hermes-agent';
-const DEFAULT_SETTINGS = {
-  model: DEFAULT_MODEL,
-  petImage: '',
-  thinkingImage: '',
-  happyImage: '',
-  petScale: 100,
-  petName: 'Hermes',
-  locale: 'zh',
-  hermesPath: '',
-  cronDeliver: 'local',
-  sessionId: '',
-  alwaysOnTop: true,
-};
+const { createSettingsStore } = require('./main/settings-store');
+const { createHermesCliClient } = require('./main/hermes-cli-client');
+
+const settingsStore = createSettingsStore({ app, fs, path });
+const { getSettings, saveSettings } = settingsStore;
+const hermesCliClient = createHermesCliClient({
+  fs,
+  path,
+  os,
+  spawn,
+  getSettings,
+  env: process.env,
+});
 
 let mainWindow;
 let chatVisible = false;
-let cachedSettings = null;
-let hermesBinaryPath = '';
-let lastHermesPath = '';
-
-function findHermesBinary() {
-  const settings = getSettings();
-  if (settings.hermesPath !== lastHermesPath) {
-    hermesBinaryPath = '';
-    lastHermesPath = settings.hermesPath;
-  }
-  if (hermesBinaryPath) return hermesBinaryPath;
-
-  // User override takes highest priority
-  if (settings.hermesPath) {
-    try {
-      fs.accessSync(settings.hermesPath, fs.constants.X_OK);
-      hermesBinaryPath = settings.hermesPath;
-      return hermesBinaryPath;
-    } catch (_e) {}
-  }
-
-  const candidates = [
-    path.join(process.env.HOME || os.homedir(), '.local', 'bin', 'hermes'),
-    '/opt/homebrew/bin/hermes',
-    '/usr/local/bin/hermes',
-    '/usr/local/lib/hermes-agent/venv/bin/hermes',
-    path.join(process.env.HOME || os.homedir(), 'bin', 'hermes'),
-    '/usr/bin/hermes',
-    'hermes',
-  ];
-  for (const p of candidates) {
-    if (p === 'hermes') {
-      hermesBinaryPath = 'hermes';
-      return hermesBinaryPath;
-    }
-    try {
-      fs.accessSync(p, fs.constants.X_OK);
-      hermesBinaryPath = p;
-      return hermesBinaryPath;
-    } catch (_e) {}
-  }
-  hermesBinaryPath = 'hermes';
-  return hermesBinaryPath;
-}
-
-function getHermesEnv() {
-  const env = { ...process.env };
-  const extraPaths = [
-    path.join(process.env.HOME || os.homedir(), '.local', 'bin'),
-    '/opt/homebrew/bin',
-    '/usr/local/bin',
-    '/usr/bin',
-    '/bin',
-  ];
-  const currentPath = env.PATH || '';
-  const missing = extraPaths.filter((p) => !currentPath.includes(p)).join(':');
-  if (missing) {
-    env.PATH = missing + ':' + currentPath;
-  }
-  return env;
-}
-
-function getSettingsPath() {
-  return path.join(app.getPath('userData'), 'pet-settings.json');
-}
-
-function normalizeSettings(settings = {}) {
-  return {
-    model: String(settings.model || DEFAULT_SETTINGS.model).trim() || DEFAULT_SETTINGS.model,
-    petImage: String(settings.petImage || '').trim(),
-    thinkingImage: String(settings.thinkingImage || '').trim(),
-    happyImage: String(settings.happyImage || '').trim(),
-    petScale: Math.min(300, Math.max(50, Number(settings.petScale) || DEFAULT_SETTINGS.petScale)),
-    petName: String(settings.petName || DEFAULT_SETTINGS.petName).trim() || DEFAULT_SETTINGS.petName,
-    locale: ['zh', 'en', 'ja', 'ko'].includes(settings.locale) ? settings.locale : DEFAULT_SETTINGS.locale,
-    hermesPath: String(settings.hermesPath || '').trim(),
-    cronDeliver: String(settings.cronDeliver || DEFAULT_SETTINGS.cronDeliver).trim() || DEFAULT_SETTINGS.cronDeliver,
-    sessionId: String(settings.sessionId || '').trim(),
-    alwaysOnTop: settings.alwaysOnTop !== undefined ? Boolean(settings.alwaysOnTop) : DEFAULT_SETTINGS.alwaysOnTop,
-  };
-}
-
-function readSettingsFromDisk() {
-  try {
-    const raw = fs.readFileSync(getSettingsPath(), 'utf8');
-    return normalizeSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(raw) });
-  } catch (_error) {
-    return { ...DEFAULT_SETTINGS };
-  }
-}
-
-function getSettings() {
-  if (!cachedSettings) cachedSettings = readSettingsFromDisk();
-  return { ...cachedSettings };
-}
-
-function saveSettings(partialSettings = {}) {
-  cachedSettings = normalizeSettings({ ...getSettings(), ...partialSettings });
-  fs.mkdirSync(path.dirname(getSettingsPath()), { recursive: true });
-  fs.writeFileSync(getSettingsPath(), `${JSON.stringify(cachedSettings, null, 2)}\n`);
-  return getSettings();
-}
 
 function sendSettingsChanged() {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -255,7 +152,7 @@ function setLocale(locale) {
 }
 
 ipcMain.handle('hermes:detect-path', async () => {
-  const bin = findHermesBinary();
+  const bin = hermesCliClient.findHermesBinary();
   return { ok: bin !== 'hermes', path: bin };
 });
 
@@ -380,8 +277,8 @@ ipcMain.handle('pet:create-cron', async (_event, payload = {}) => {
     if (name) args.push('--name', name);
     args.push(schedule, prompt);
 
-    const child = spawn(findHermesBinary(), args, {
-      env: getHermesEnv(),
+    const child = spawn(hermesCliClient.findHermesBinary(), args, {
+      env: hermesCliClient.getHermesEnv(),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
@@ -424,83 +321,7 @@ ipcMain.handle('pet:get-window-bounds', () => {
   return { x, y, width, height };
 });
 
-ipcMain.handle('hermes:health', async () => {
-  try {
-    const result = await new Promise((resolve) => {
-      const child = spawn(findHermesBinary(), ['--version'], {
-        env: getHermesEnv(),
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-      let stdout = '';
-      let stderr = '';
-      child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
-      child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
-      child.on('error', (error) => resolve({ ok: false, error: error.message }));
-      child.on('close', (code) => resolve({ ok: code === 0, stdout, stderr }));
-    });
-    if (!result.ok) {
-      return { ok: false, error: result.error || 'hermes CLI 不可用，请确认已安装。' };
-    }
-    // Extract just the first line (e.g. "Hermes Agent v0.13.0 (2026.5.7)")
-    const firstLine = result.stdout.trim().split('\n')[0].trim();
-    return { ok: true, version: firstLine };
-  } catch (error) {
-    return { ok: false, error: error.message };
-  }
-});
-
-function runHermesChat(text, sessionId = '') {
-  return new Promise((resolve) => {
-    const args = ['chat', '-q', text, '-Q'];
-    const model = getSettings().model;
-    if (model && model !== 'hermes-agent') {
-      args.push('-m', model);
-    }
-    if (sessionId) {
-      args.push('--resume', sessionId);
-    }
-
-    const child = spawn(findHermesBinary(), args, {
-      env: getHermesEnv(),
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
-    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
-    child.on('error', (error) => resolve({ ok: false, error: error.message }));
-    child.on('close', (code) => resolve({ ok: code === 0, code, stdout, stderr }));
-  });
-}
-
-function parseHermesChatOutput(output) {
-  const lines = output.split('\n');
-  let sessionId = '';
-  let replyLines = [];
-  let foundSession = false;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    // Skip system info lines
-    if (trimmed.startsWith('↻ Resumed session')) continue;
-    if (!foundSession && trimmed.startsWith('session_id:')) {
-      sessionId = trimmed.slice(11).trim();
-      foundSession = true;
-      continue;
-    }
-    if (foundSession) {
-      replyLines.push(line);
-    }
-  }
-  // If no session_id line found, treat non-system lines as reply
-  if (!foundSession) {
-    replyLines = lines.filter((line) => {
-      const t = line.trim();
-      return t && !t.startsWith('↻ Resumed session');
-    });
-  }
-  return { sessionId, reply: replyLines.join('\n').trim() };
-}
+ipcMain.handle('hermes:health', async () => hermesCliClient.checkHealth());
 
 ipcMain.handle('hermes:send-message', async (_event, { text }) => {
   const cleanText = String(text || '').trim();
@@ -509,7 +330,7 @@ ipcMain.handle('hermes:send-message', async (_event, { text }) => {
   }
 
   const currentSessionId = getSettings().sessionId;
-  const result = await runHermesChat(cleanText, currentSessionId);
+  const result = await hermesCliClient.runHermesChat(cleanText, currentSessionId);
 
   if (!result.ok) {
     return {
@@ -518,7 +339,7 @@ ipcMain.handle('hermes:send-message', async (_event, { text }) => {
     };
   }
 
-  const { sessionId, reply } = parseHermesChatOutput(result.combined || result.stdout);
+  const { sessionId, reply } = hermesCliClient.parseHermesChatOutput(result.stdout);
   if (sessionId && sessionId !== currentSessionId) {
     saveSettings({ sessionId });
     sendSettingsChanged();
@@ -538,14 +359,14 @@ ipcMain.on('hermes:send-message-stream', async (event, { text, requestId }) => {
   }
 
   const currentSessionId = getSettings().sessionId;
-  const result = await runHermesChat(cleanText, currentSessionId);
+  const result = await hermesCliClient.runHermesChat(cleanText, currentSessionId);
 
   if (!result.ok) {
     sender.send(channel('error'), { error: result.error || result.stderr || `hermes 退出码 ${result.code}` });
     return;
   }
 
-  const { sessionId, reply } = parseHermesChatOutput(result.combined || result.stdout);
+  const { sessionId, reply } = hermesCliClient.parseHermesChatOutput(result.stdout);
   if (sessionId && sessionId !== currentSessionId) {
     saveSettings({ sessionId });
     sendSettingsChanged();
@@ -610,8 +431,8 @@ function parseCronList(output) {
 ipcMain.handle('hermes:list-crons', async () => {
   try {
     const result = await new Promise((resolve) => {
-      const child = spawn(findHermesBinary(), ['cron', 'list'], {
-        env: getHermesEnv(),
+      const child = spawn(hermesCliClient.findHermesBinary(), ['cron', 'list'], {
+        env: hermesCliClient.getHermesEnv(),
         stdio: ['ignore', 'pipe', 'pipe'],
       });
       let stdout = '';
@@ -716,8 +537,8 @@ ipcMain.handle('hermes:list-providers', async () => {
 ipcMain.handle('hermes:get-model-config', async () => {
   try {
     const result = await new Promise((resolve) => {
-      const child = spawn(findHermesBinary(), ['config', 'show'], {
-        env: getHermesEnv(),
+      const child = spawn(hermesCliClient.findHermesBinary(), ['config', 'show'], {
+        env: hermesCliClient.getHermesEnv(),
         stdio: ['ignore', 'pipe', 'pipe'],
       });
       let stdout = '';
@@ -778,8 +599,8 @@ ipcMain.handle('hermes:set-model', async (_event, model) => {
     // Set provider if specified
     if (provider) {
       const providerResult = await new Promise((resolve) => {
-        const child = spawn(findHermesBinary(), ['config', 'set', 'model.provider', provider], {
-          env: getHermesEnv(),
+        const child = spawn(hermesCliClient.findHermesBinary(), ['config', 'set', 'model.provider', provider], {
+          env: hermesCliClient.getHermesEnv(),
           stdio: ['ignore', 'pipe', 'pipe'],
         });
         let stdout = '';
@@ -797,8 +618,8 @@ ipcMain.handle('hermes:set-model', async (_event, model) => {
 
     // Set model default
     const modelResult = await new Promise((resolve) => {
-      const child = spawn(findHermesBinary(), ['config', 'set', 'model.default', modelName], {
-        env: getHermesEnv(),
+      const child = spawn(hermesCliClient.findHermesBinary(), ['config', 'set', 'model.default', modelName], {
+        env: hermesCliClient.getHermesEnv(),
         stdio: ['ignore', 'pipe', 'pipe'],
       });
       let stdout = '';
