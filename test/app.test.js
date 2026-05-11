@@ -11,10 +11,26 @@ test('Electron app files exist', () => {
     'src/preload.js',
     'src/renderer/index.html',
     'src/renderer/renderer.js',
+    'src/renderer/modules/pet-hit-test.js',
+    'src/renderer/modules/panel-layout.js',
     'src/renderer/styles.css',
   ]) {
     assert.equal(fs.existsSync(path.join(root, rel)), true, `${rel} should exist`);
   }
+});
+
+test('renderer index loads hit-test and panel-layout modules before renderer entrypoint', () => {
+  const html = fs.readFileSync(path.join(root, 'src/renderer/index.html'), 'utf8');
+
+  const petModuleIndex = html.indexOf('modules/pet-hit-test.js');
+  const panelModuleIndex = html.indexOf('modules/panel-layout.js');
+  const rendererIndex = html.indexOf('renderer.js');
+
+  assert.notEqual(petModuleIndex, -1);
+  assert.notEqual(panelModuleIndex, -1);
+  assert.notEqual(rendererIndex, -1);
+  assert.ok(petModuleIndex < rendererIndex, 'pet-hit-test module should load before renderer.js');
+  assert.ok(panelModuleIndex < rendererIndex, 'panel-layout module should load before renderer.js');
 });
 
 test('package.json exposes start and smoke scripts', () => {
@@ -63,48 +79,63 @@ test('pet is clickable and drag is handled manually', () => {
 
 test('pet transparent pixels do not capture clicks', () => {
   const renderer = fs.readFileSync(path.join(root, 'src/renderer/renderer.js'), 'utf8');
+  const hitTestModule = fs.readFileSync(path.join(root, 'src/renderer/modules/pet-hit-test.js'), 'utf8');
 
-  assert.match(renderer, /const PET_HIT_ALPHA_THRESHOLD = 24/);
+  assert.match(hitTestModule, /PET_HIT_ALPHA_THRESHOLD = 24/);
+  assert.match(hitTestModule, /function mapPointToContainedImage\(/);
+  assert.match(hitTestModule, /function isAlphaHit\(/);
+  assert.match(hitTestModule, /function isFallbackShapeHit\(/);
+  assert.match(renderer, /DeskBuddyPetHitTest/);
   assert.match(renderer, /function setPetHitMask\(/);
   assert.match(renderer, /function isPetVisualHit\(/);
+  assert.match(renderer, /mapPointToContainedImage\(x, y, rect, petHitMask\)/);
   assert.match(renderer, /getImageData\(imageX, imageY, 1, 1\)/);
-  assert.match(renderer, /return pixel\[3\] >= PET_HIT_ALPHA_THRESHOLD/);
+  assert.match(renderer, /return isAlphaHit\(pixel\[3\]\)/);
+  assert.match(renderer, /return isFallbackShapeHit\(x, y, rect\)/);
   assert.match(renderer, /function isPetPointerEvent\(/);
   assert.match(renderer, /if \(petEl\) return isPetVisualHit\(x, y\)/);
   assert.match(renderer, /if \(!isPetPointerEvent\(event\)\) return/);
+  assert.doesNotMatch(renderer, /const PET_HIT_ALPHA_THRESHOLD = 24/);
 });
 
 test('scaled pet panels expand the transparent window instead of clipping', () => {
   const renderer = fs.readFileSync(path.join(root, 'src/renderer/renderer.js'), 'utf8');
+  const layoutModule = fs.readFileSync(path.join(root, 'src/renderer/modules/panel-layout.js'), 'utf8');
 
-  assert.match(renderer, /const PET_BASE_SIZE = 138/);
-  assert.match(renderer, /const PANEL_TOP_MARGIN = 18/);
+  assert.match(layoutModule, /PET_BASE_SIZE = 138/);
+  assert.match(layoutModule, /PANEL_TOP_MARGIN = 18/);
+  assert.match(layoutModule, /function getWindowResizePlan\(/);
+  assert.match(renderer, /DeskBuddyPanelLayout/);
   assert.match(renderer, /function getVisiblePanel\(\)/);
   assert.match(renderer, /async function updatePanelOffsets\(\)/);
-  assert.match(renderer, /requiredHeight:\s*Math\.ceil\(panelHeight \+ desiredBottom \+ PANEL_TOP_MARGIN\)/);
+  assert.match(renderer, /getPanelLayout\(\{ panelWidth, panelHeight \}\)/);
   assert.match(renderer, /window\.desktopPet\.getWindowBounds\(\)/);
-  assert.match(renderer, /bounds\.y - deltaHeight/);
-  assert.match(renderer, /bounds\.x - deltaWidth/);
+  assert.match(renderer, /getWindowResizePlan\(/);
+  assert.match(renderer, /resizePlan\.x/);
+  assert.match(renderer, /resizePlan\.y/);
   assert.match(renderer, /window\.desktopPet\.setWindowBounds/);
   assert.match(renderer, /Math\.min\(desiredBottom, maxBottom\)/);
+  assert.doesNotMatch(renderer, /const PET_BASE_SIZE = 138/);
 });
 
 test('scaled pet stays anchored and panels stay close while resizing', () => {
   const styles = fs.readFileSync(path.join(root, 'src/renderer/styles.css'), 'utf8');
   const renderer = fs.readFileSync(path.join(root, 'src/renderer/renderer.js'), 'utf8');
+  const layoutModule = fs.readFileSync(path.join(root, 'src/renderer/modules/panel-layout.js'), 'utf8');
   const main = fs.readFileSync(path.join(root, 'src/main.js'), 'utf8');
 
   assert.match(styles, /\.pet\s*\{[\s\S]*?transform-origin:\s*bottom right/);
   assert.match(styles, /\.chat-panel\.near-pet\s*\{[\s\S]*?bottom:\s*190px/);
-  assert.match(renderer, /const PANEL_GAP = 20/);
+  assert.match(layoutModule, /PANEL_GAP = 20/);
+  assert.match(layoutModule, /function clampPanelSize\(/);
   assert.match(renderer, /function getDesiredPanelBottom\(\)/);
-  assert.match(renderer, /Math\.round\(getPetVisualSize\(\) \+ PET_BOTTOM_OFFSET \+ PANEL_GAP\)/);
+  assert.match(renderer, /DeskBuddyPanelLayout\.getDesiredPanelBottom\(getPetScale\(\)\)/);
   assert.match(renderer, /function getPanelLayout\(/);
-  assert.match(renderer, /Math\.max\(panelWidth, petVisualSize\)/);
+  assert.match(renderer, /DeskBuddyPanelLayout\.getPanelLayout\(\{ scale: getPetScale\(\), panelWidth, panelHeight \}\)/);
   assert.match(renderer, /getPanelLayout\(\{ panelWidth: newW, panelHeight: newH \}\)/);
   assert.match(renderer, /const maxTargetH = corner\.includes\('top'\)/);
   assert.match(renderer, /const maxTargetW = corner\.includes\('left'\)/);
-  assert.match(renderer, /const availablePanelHeight = Math\.max\(200, targetHeight - desiredBottom - PANEL_TOP_MARGIN\)/);
+  assert.match(renderer, /clampPanelSize\(\{/);
   assert.match(renderer, /panel\.style\.height = `\$\{availablePanelHeight\}px`/);
   assert.match(renderer, /window\.addEventListener\('resize'/);
   assert.doesNotMatch(renderer, /const PANEL_BOTTOM_OFFSET = 220/);
