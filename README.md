@@ -47,7 +47,7 @@ npm run dist:mac
 
 ## Hermes 依赖
 
-需要本机安装 [Hermes CLI](https://github.com/fatedier/hermes)（`hermes` 命令可用）。
+需要本机安装 [Hermes Agent](https://github.com/NousResearch/hermes-agent)（自带 `hermes` CLI，安装后 `hermes` 命令可用）。
 
 检查连接：
 
