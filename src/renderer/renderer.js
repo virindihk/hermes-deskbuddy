@@ -606,6 +606,15 @@ function appendMessage(role, text) {
   return el;
 }
 
+function updatePanelOffsets() {
+  const scale = parseFloat(getComputedStyle(pet).getPropertyValue('--pet-scale')) || 1;
+  const petVisualHeight = 138 * scale;
+  const bottomOffset = Math.max(220, Math.round(petVisualHeight + 32 + 20));
+  chatPanel.style.bottom = `${bottomOffset}px`;
+  settingsPanel.style.bottom = `${bottomOffset}px`;
+  cronPanel.style.bottom = `${bottomOffset}px`;
+}
+
 function setChatVisible(visible) {
   chatPanel.classList.toggle('hidden', !visible);
   chatPanel.classList.toggle('near-pet', visible);
