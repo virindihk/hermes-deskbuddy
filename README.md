@@ -91,4 +91,4 @@ hermes chat -q "hello"
 
 ## License
 
-UNLICENSED
+MIT — see [LICENSE](LICENSE).

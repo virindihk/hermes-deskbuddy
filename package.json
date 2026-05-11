@@ -17,7 +17,7 @@
     "hermes-agent"
   ],
   "author": "Leo + Gege",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "build": {
     "appId": "com.leo.hermes-deskbuddy",
     "productName": "Hermes DeskBuddy",
