@@ -47,7 +47,20 @@ const PET_STATES = {
 let petState = PET_STATES.IDLE;
 let petStateTimer = null;
 
-const PET_HIT_ALPHA_THRESHOLD = 24;
+const DeskBuddyPetHitTest = window.DeskBuddyPetHitTest;
+const {
+  mapPointToContainedImage,
+  isAlphaHit,
+  isFallbackShapeHit,
+} = DeskBuddyPetHitTest;
+const DeskBuddyPanelLayout = window.DeskBuddyPanelLayout;
+const {
+  PET_RIGHT_OFFSET,
+  PANEL_LEFT_MARGIN,
+  PANEL_TOP_MARGIN,
+  clampPanelSize,
+  getWindowResizePlan,
+} = DeskBuddyPanelLayout;
 let petHitMask = null;
 let petHitMaskUrl = '';
 
@@ -610,14 +623,6 @@ function appendMessage(role, text) {
   return el;
 }
 
-const PET_BASE_SIZE = 138;
-const PET_RIGHT_OFFSET = 34;
-const PET_BOTTOM_OFFSET = 32;
-const PANEL_LEFT_MARGIN = 18;
-const PANEL_TOP_MARGIN = 18;
-const PANEL_GAP = 20;
-const MIN_PANEL_BOTTOM = PET_BASE_SIZE + PET_BOTTOM_OFFSET + PANEL_GAP;
-
 function getVisiblePanel() {
   if (!chatPanel.classList.contains('hidden')) return chatPanel;
   if (!settingsPanel.classList.contains('hidden')) return settingsPanel;
@@ -630,25 +635,15 @@ function getPetScale() {
 }
 
 function getPetVisualSize() {
-  return PET_BASE_SIZE * getPetScale();
+  return DeskBuddyPanelLayout.getPetVisualSize(getPetScale());
 }
 
 function getDesiredPanelBottom() {
-  return Math.max(
-    MIN_PANEL_BOTTOM,
-    Math.round(getPetVisualSize() + PET_BOTTOM_OFFSET + PANEL_GAP),
-  );
+  return DeskBuddyPanelLayout.getDesiredPanelBottom(getPetScale());
 }
 
 function getPanelLayout({ panelWidth = 0, panelHeight = 0 } = {}) {
-  const petVisualSize = getPetVisualSize();
-  const desiredBottom = getDesiredPanelBottom();
-  return {
-    desiredBottom,
-    petVisualSize,
-    requiredWidth: Math.ceil(Math.max(panelWidth, petVisualSize) + PET_RIGHT_OFFSET + PANEL_LEFT_MARGIN),
-    requiredHeight: Math.ceil(panelHeight + desiredBottom + PANEL_TOP_MARGIN),
-  };
+  return DeskBuddyPanelLayout.getPanelLayout({ scale: getPetScale(), panelWidth, panelHeight });
 }
 
 function setPanelBottom(bottomOffset) {
@@ -658,8 +653,18 @@ function setPanelBottom(bottomOffset) {
 }
 
 function fitPanelToTarget(panel, targetWidth, targetHeight, desiredBottom) {
-  const availablePanelWidth = Math.max(260, targetWidth - PET_RIGHT_OFFSET - PANEL_LEFT_MARGIN);
-  const availablePanelHeight = Math.max(200, targetHeight - desiredBottom - PANEL_TOP_MARGIN);
+  const {
+    panelWidth,
+    panelHeight,
+    availablePanelWidth,
+    availablePanelHeight,
+  } = clampPanelSize({
+    panelWidth: panel.offsetWidth,
+    panelHeight: panel.offsetHeight,
+    targetWidth,
+    targetHeight,
+    desiredBottom,
+  });
 
   if (panel.offsetWidth > availablePanelWidth) {
     panel.style.width = `${availablePanelWidth}px`;
@@ -669,8 +674,8 @@ function fitPanelToTarget(panel, targetWidth, targetHeight, desiredBottom) {
   }
 
   return {
-    panelWidth: Math.min(panel.offsetWidth, availablePanelWidth),
-    panelHeight: Math.min(panel.offsetHeight, availablePanelHeight),
+    panelWidth,
+    panelHeight,
   };
 }
 
@@ -685,20 +690,20 @@ async function updatePanelOffsets() {
   if (window.innerWidth < requiredWidth || window.innerHeight < requiredHeight) {
     try {
       const bounds = await window.desktopPet.getWindowBounds();
-      const screenLeft = Number(window.screen?.availLeft) || 0;
-      const screenTop = Number(window.screen?.availTop) || 0;
-      const maxWidthKeepingRight = Math.max(bounds.width, bounds.x + bounds.width - screenLeft);
-      const maxHeightKeepingBottom = Math.max(bounds.height, bounds.y + bounds.height - screenTop);
-      targetWidth = Math.min(requiredWidth, maxWidthKeepingRight);
-      targetHeight = Math.min(requiredHeight, maxHeightKeepingBottom);
-      const deltaWidth = Math.max(0, targetWidth - bounds.width);
-      const deltaHeight = Math.max(0, targetHeight - bounds.height);
-      if (deltaWidth > 0 || deltaHeight > 0) {
+      const resizePlan = getWindowResizePlan({
+        bounds,
+        requiredWidth,
+        requiredHeight,
+        screen: window.screen || {},
+      });
+      targetWidth = resizePlan.width;
+      targetHeight = resizePlan.height;
+      if (resizePlan.shouldResize) {
         window.desktopPet.setWindowBounds(
-          bounds.x - deltaWidth,
-          bounds.y - deltaHeight,
-          targetWidth,
-          targetHeight,
+          resizePlan.x,
+          resizePlan.y,
+          resizePlan.width,
+          resizePlan.height,
         );
       }
     } catch (_error) {
@@ -819,41 +824,23 @@ function setPetHitMask(imageUrl) {
 
 function isPetVisualHit(x, y) {
   const rect = pet.getBoundingClientRect();
-  if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return false;
+  if (!DeskBuddyPetHitTest.pointInRect(x, y, rect)) return false;
 
   if (petHitMask) {
-    const imageAspect = petHitMask.width / petHitMask.height;
-    const rectAspect = rect.width / rect.height;
-    let displayWidth = rect.width;
-    let displayHeight = rect.height;
-    let offsetX = 0;
-    let offsetY = 0;
-
-    if (imageAspect > rectAspect) {
-      displayHeight = rect.width / imageAspect;
-      offsetY = (rect.height - displayHeight) / 2;
-    } else {
-      displayWidth = rect.height * imageAspect;
-      offsetX = (rect.width - displayWidth) / 2;
-    }
-
-    const localX = x - rect.left - offsetX;
-    const localY = y - rect.top - offsetY;
-    if (localX < 0 || localX > displayWidth || localY < 0 || localY > displayHeight) return false;
+    const imagePoint = mapPointToContainedImage(x, y, rect, petHitMask);
+    if (!imagePoint) return false;
 
     try {
-      const imageX = Math.max(0, Math.min(petHitMask.width - 1, Math.floor((localX / displayWidth) * petHitMask.width)));
-      const imageY = Math.max(0, Math.min(petHitMask.height - 1, Math.floor((localY / displayHeight) * petHitMask.height)));
+      const imageX = imagePoint.x;
+      const imageY = imagePoint.y;
       const pixel = petHitMask.ctx.getImageData(imageX, imageY, 1, 1).data;
-      return pixel[3] >= PET_HIT_ALPHA_THRESHOLD;
+      return isAlphaHit(pixel[3]);
     } catch (_error) {
       petHitMask = null;
     }
   }
 
-  const dx = (x - (rect.left + rect.width / 2)) / (rect.width * 0.46);
-  const dy = (y - (rect.top + rect.height * 0.56)) / (rect.height * 0.50);
-  return (dx * dx + dy * dy) <= 1;
+  return isFallbackShapeHit(x, y, rect);
 }
 
 function isPetPointerEvent(event) {
@@ -1687,18 +1674,30 @@ function setupResizeHandle(handle, corner) {
       ? Math.max(minTargetH, windowBottom - screenTop)
       : Math.max(minTargetH, screenBottom - resizeStart.winY);
     const desiredBottom = getDesiredPanelBottom();
-    const maxPanelW = Math.max(260, Math.min(640, maxTargetW - PET_RIGHT_OFFSET - PANEL_LEFT_MARGIN));
-    const maxPanelH = Math.max(200, maxTargetH - desiredBottom - PANEL_TOP_MARGIN);
-    newW = Math.max(260, Math.min(maxPanelW, newW));
-    newH = Math.max(200, Math.min(maxPanelH, newH));
+    const maxPanelSize = clampPanelSize({
+      panelWidth: newW,
+      panelHeight: newH,
+      targetWidth: maxTargetW,
+      targetHeight: maxTargetH,
+      desiredBottom,
+    });
+    newW = Math.min(640, maxPanelSize.panelWidth);
+    newH = maxPanelSize.panelHeight;
 
     let layout = getPanelLayout({ panelWidth: newW, panelHeight: newH });
     let targetWidth = Math.min(layout.requiredWidth, maxTargetW);
     let targetHeight = Math.min(layout.requiredHeight, maxTargetH);
-    const availablePanelWidth = Math.max(260, targetWidth - PET_RIGHT_OFFSET - PANEL_LEFT_MARGIN);
-    const availablePanelHeight = Math.max(200, targetHeight - desiredBottom - PANEL_TOP_MARGIN);
-    newW = Math.min(newW, availablePanelWidth);
-    newH = Math.min(newH, availablePanelHeight);
+    const availablePanelSize = clampPanelSize({
+      panelWidth: newW,
+      panelHeight: newH,
+      targetWidth,
+      targetHeight,
+      desiredBottom,
+    });
+    const availablePanelWidth = Math.min(640, availablePanelSize.availablePanelWidth);
+    const availablePanelHeight = availablePanelSize.availablePanelHeight;
+    newW = Math.min(availablePanelSize.panelWidth, availablePanelWidth);
+    newH = Math.min(availablePanelSize.panelHeight, availablePanelHeight);
 
     layout = getPanelLayout({ panelWidth: newW, panelHeight: newH });
     targetWidth = Math.min(layout.requiredWidth, maxTargetW);
