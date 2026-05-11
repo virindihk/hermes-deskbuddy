@@ -1448,8 +1448,15 @@ function setupResizeHandle(handle, corner) {
       newH = resizeStart.h + deltaY;
     }
 
+    // Panel offset constants must stay in sync with CSS:
+    // .chat-panel { top: 18px }  and  .chat-panel.near-pet { bottom: 220px }
+    const PANEL_TOP_OFFSET = 18;
+    const PANEL_BOTTOM_OFFSET = 220;
+    const PANEL_HEIGHT_MARGIN = PANEL_TOP_OFFSET + PANEL_BOTTOM_OFFSET; // 238
+
+    const maxPanelH = window.screen.availHeight - PANEL_HEIGHT_MARGIN;
     newW = Math.max(260, Math.min(640, newW));
-    newH = Math.max(200, Math.min(800, newH));
+    newH = Math.max(200, Math.min(maxPanelH, newH));
 
     if (corner.includes('left')) {
       newX = resizeStart.winX + (resizeStart.w - newW);
@@ -1460,7 +1467,7 @@ function setupResizeHandle(handle, corner) {
 
     chatPanel.style.width = `${newW}px`;
     chatPanel.style.height = `${newH}px`;
-    window.desktopPet.setWindowBounds(Math.round(newX), Math.round(newY), Math.round(newW + 60), Math.round(newH + 170));
+    window.desktopPet.setWindowBounds(Math.round(newX), Math.round(newY), Math.round(newW + 60), Math.round(newH + PANEL_HEIGHT_MARGIN));
 
     // Incremental: update start state for next pointermove so reverse drag works immediately after hitting a limit
     resizeStart.x = event.screenX;

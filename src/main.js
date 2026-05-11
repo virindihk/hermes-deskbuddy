@@ -387,10 +387,13 @@ ipcMain.on('pet:set-window-bounds', (_event, x, y, width, height) => {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   const { workArea } = screen.getPrimaryDisplay();
   // Keep window inside the actual work area (accounts for menu bar / dock)
-  x = Math.max(workArea.x, Math.min(x, workArea.x + workArea.width - 320));
-  y = Math.max(workArea.y, Math.min(y, workArea.y + workArea.height - 380));
-  const newW = Math.max(320, Math.min(workArea.x + workArea.width - x, Math.round(width)));
-  const newH = Math.max(380, Math.min(workArea.y + workArea.height - y, Math.round(height)));
+  // Min window size = min panel (260×200) + CSS margins: left 18 + right 34 = 52 width, top 18 + bottom 220 = 238 height
+  const MIN_WIN_W = 260 + 52; // 312
+  const MIN_WIN_H = 200 + 238; // 438
+  x = Math.max(workArea.x, Math.min(x, workArea.x + workArea.width - MIN_WIN_W));
+  y = Math.max(workArea.y, Math.min(y, workArea.y + workArea.height - MIN_WIN_H));
+  const newW = Math.max(MIN_WIN_W, Math.min(workArea.x + workArea.width - x, Math.round(width)));
+  const newH = Math.max(MIN_WIN_H, Math.min(workArea.y + workArea.height - y, Math.round(height)));
   mainWindow.setBounds({ x: Math.round(x), y: Math.round(y), width: newW, height: newH });
 });
 
