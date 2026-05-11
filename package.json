@@ -1,6 +1,6 @@
 {
   "name": "hermes-pet",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A tiny desktop pet that chats through Hermes Agent.",
   "main": "src/main.js",
   "scripts": {

@@ -211,6 +211,8 @@ textarea {
   -webkit-app-region: no-drag;
   transform-origin: bottom right;
   transition: opacity 160ms ease, transform 160ms ease;
+  /* Force GPU layer to prevent border-radius rendering issues on resize */
+  transform: translateZ(0);
 }
 
 .chat-panel {
@@ -324,6 +326,7 @@ textarea {
   padding: 16px 16px 12px;
   border-bottom: 1px solid rgba(117, 109, 132, 0.13);
   background: linear-gradient(135deg, rgba(255, 229, 242, 0.88), rgba(238, 231, 255, 0.88));
+  border-radius: 24px 24px 0 0;
 }
 
 .chat-header {

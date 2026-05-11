@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, screen, shell, Menu, dialog } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { spawn } = require('child_process');
 
 const DEFAULT_MODEL = process.env.HERMES_MODEL || 'hermes-agent';
@@ -12,6 +13,7 @@ const DEFAULT_SETTINGS = {
   petScale: 100,
   petName: 'Hermes',
   locale: 'zh',
+  hermesPath: '',
   cronDeliver: 'local',
   sessionId: '',
 };
@@ -20,13 +22,31 @@ let mainWindow;
 let chatVisible = false;
 let cachedSettings = null;
 let hermesBinaryPath = '';
+let lastHermesPath = '';
 
 function findHermesBinary() {
+  const settings = getSettings();
+  if (settings.hermesPath !== lastHermesPath) {
+    hermesBinaryPath = '';
+    lastHermesPath = settings.hermesPath;
+  }
   if (hermesBinaryPath) return hermesBinaryPath;
+
+  // User override takes highest priority
+  if (settings.hermesPath) {
+    try {
+      fs.accessSync(settings.hermesPath, fs.constants.X_OK);
+      hermesBinaryPath = settings.hermesPath;
+      return hermesBinaryPath;
+    } catch (_e) {}
+  }
+
   const candidates = [
     path.join(process.env.HOME || os.homedir(), '.local', 'bin', 'hermes'),
     '/opt/homebrew/bin/hermes',
     '/usr/local/bin/hermes',
+    '/usr/local/lib/hermes-agent/venv/bin/hermes',
+    path.join(process.env.HOME || os.homedir(), 'bin', 'hermes'),
     '/usr/bin/hermes',
     'hermes',
   ];
@@ -75,6 +95,7 @@ function normalizeSettings(settings = {}) {
     petScale: Math.min(300, Math.max(50, Number(settings.petScale) || DEFAULT_SETTINGS.petScale)),
     petName: String(settings.petName || DEFAULT_SETTINGS.petName).trim() || DEFAULT_SETTINGS.petName,
     locale: ['zh', 'en', 'ja', 'ko'].includes(settings.locale) ? settings.locale : DEFAULT_SETTINGS.locale,
+    hermesPath: String(settings.hermesPath || '').trim(),
     cronDeliver: String(settings.cronDeliver || DEFAULT_SETTINGS.cronDeliver).trim() || DEFAULT_SETTINGS.cronDeliver,
     sessionId: String(settings.sessionId || '').trim(),
   };
@@ -176,17 +197,6 @@ function openSettingsMenu(point = {}) {
       label: t.openSettings,
       click: () => mainWindow.webContents.send('settings:open'),
     },
-    {
-      label: t.customImage,
-      click: () => { choosePetImage(); },
-    },
-    {
-      label: t.resetImage,
-      click: () => {
-        saveSettings({ petImage: '' });
-        sendSettingsChanged();
-      },
-    },
     { type: 'separator' },
     {
       label: t.cronManager,
@@ -224,6 +234,11 @@ function setLocale(locale) {
     mainWindow.webContents.send('locale:changed', locale);
   }
 }
+
+ipcMain.handle('hermes:detect-path', async () => {
+  const bin = findHermesBinary();
+  return { ok: bin !== 'hermes', path: bin };
+});
 
 function createWindow() {
   const display = screen.getPrimaryDisplay();

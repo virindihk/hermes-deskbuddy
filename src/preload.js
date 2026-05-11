@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('desktopPet', {
   chooseImageField: (field) => ipcRenderer.invoke('pet:choose-image-field', field),
   createCron: (payload) => ipcRenderer.invoke('pet:create-cron', payload),
   listCrons: () => ipcRenderer.invoke('hermes:list-crons'),
+  detectHermesPath: () => ipcRenderer.invoke('hermes:detect-path'),
   quit: () => ipcRenderer.invoke('pet:quit'),
   checkHermesHealth: () => ipcRenderer.invoke('hermes:health'),
   startHermesGateway: () => ipcRenderer.invoke('hermes:start-gateway'),

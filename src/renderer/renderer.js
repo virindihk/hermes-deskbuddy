@@ -19,6 +19,7 @@ const resetAllImages = document.getElementById('resetAllImages');
 const petScaleInput = document.getElementById('petScale');
 const petScaleValue = document.getElementById('petScaleValue');
 const petNameInput = document.getElementById('petName');
+const hermesPathInput = document.getElementById('hermesPath');
 const chatTitle = document.getElementById('chatTitle');
 const settingsTitle = document.getElementById('settingsTitle');
 const providerSelect = document.getElementById('providerSelect');
@@ -65,6 +66,10 @@ const I18N = {
     provider: 'Provider',
     model: 'Model',
     modelPlaceholder: '如 gpt-4o、claude-sonnet-4',
+    hermesPath: 'Hermes 路径',
+    hermesPathPlaceholder: '留空则自动查找',
+    autoDetected: '自动查找',
+    notFound: '未找到，请手动填写',
     currentSession: '当前会话',
     cronSchedule: 'Cron 安排',
     cronSchedulePlaceholder: '30m / every 2h / 0 9 * * *',
@@ -148,6 +153,10 @@ const I18N = {
     provider: 'Provider',
     model: 'Model',
     modelPlaceholder: 'e.g. gpt-4o, claude-sonnet-4',
+    hermesPath: 'Hermes Path',
+    hermesPathPlaceholder: 'Leave empty to auto-detect',
+    autoDetected: 'Auto-detect',
+    notFound: 'Not found, please enter manually',
     currentSession: 'Current Session',
     cronSchedule: 'Schedule',
     cronSchedulePlaceholder: '30m / every 2h / 0 9 * * *',
@@ -232,6 +241,10 @@ const I18N = {
     provider: 'プロバイダ',
     model: 'モデル',
     modelPlaceholder: '例: gpt-4o, claude-sonnet-4',
+    hermesPath: 'Hermes パス',
+    hermesPathPlaceholder: '空白の場合は自動検出',
+    autoDetected: '自動検出',
+    notFound: '見つかりません、手動で入力してください',
     currentSession: '現在のセッション',
     cronSchedule: 'スケジュール',
     cronSchedulePlaceholder: '30m / every 2h / 0 9 * * *',
@@ -316,6 +329,10 @@ const I18N = {
     provider: '제공자',
     model: '모델',
     modelPlaceholder: '예: gpt-4o, claude-sonnet-4',
+    hermesPath: 'Hermes 경로',
+    hermesPathPlaceholder: '비워두면 자동 검색',
+    autoDetected: '자동 검색',
+    notFound: '찾을 수 없습니다, 수동으로 입력하세요',
     currentSession: '현재 세션',
     cronSchedule: '일정',
     cronSchedulePlaceholder: '30m / every 2h / 0 9 * * *',
@@ -434,6 +451,9 @@ function updateAllTexts() {
   const labelModel = document.querySelector('label[for="modelInput"]');
   if (labelModel) labelModel.textContent = t('model');
   if (modelInput) modelInput.placeholder = t('modelPlaceholder');
+  const labelHermesPath = document.querySelector('label[for="hermesPath"]');
+  if (labelHermesPath) labelHermesPath.textContent = t('hermesPath');
+  if (hermesPathInput) hermesPathInput.placeholder = t('hermesPathPlaceholder') || 'Leave empty to auto-detect';
   const labelSession = document.querySelector('.session-label');
   if (labelSession) labelSession.textContent = t('currentSession');
   const labelCronSchedule = document.querySelector('label[for="cronSchedule"]');
@@ -663,6 +683,7 @@ function applySettings(settings = {}) {
     petScale: settings.petScale || 100,
     petName: settings.petName || 'Hermes',
     locale: settings.locale || 'zh',
+    hermesPath: settings.hermesPath || '',
     cronDeliver: settings.cronDeliver || 'local',
     sessionId: settings.sessionId || '',
   };
@@ -673,6 +694,7 @@ function applySettings(settings = {}) {
   if (petScaleInput) petScaleInput.value = currentSettings.petScale;
   if (petScaleValue) petScaleValue.textContent = `${currentSettings.petScale}%`;
   if (petNameInput) petNameInput.value = currentSettings.petName;
+  if (hermesPathInput) hermesPathInput.value = currentSettings.hermesPath;
   modelInput.value = currentSettings.model;
   cronDeliver.value = currentSettings.cronDeliver;
   sessionIdDisplay.textContent = currentSettings.sessionId || '—';
@@ -680,6 +702,19 @@ function applySettings(settings = {}) {
   applyPetScale(currentSettings.petScale);
   updatePetName(currentSettings.petName);
   setLocale(currentSettings.locale);
+
+  // Show detected hermes path in placeholder when field is empty
+  if (!currentSettings.hermesPath && hermesPathInput) {
+    window.desktopPet.detectHermesPath().then((result) => {
+      if (result.ok && result.path) {
+        hermesPathInput.placeholder = `${t('autoDetected')}: ${result.path}`;
+      } else {
+        hermesPathInput.placeholder = t('notFound');
+      }
+    }).catch(() => {
+      hermesPathInput.placeholder = t('hermesPathPlaceholder');
+    });
+  }
 }
 
 function getStateImage(state) {
@@ -820,6 +855,7 @@ async function persistSettings(partial = {}) {
     happyImage: happyImageInput.value,
     petScale: Number(petScaleInput?.value) || 100,
     petName: String(petNameInput?.value || 'Hermes').trim() || 'Hermes',
+    hermesPath: String(hermesPathInput?.value || '').trim(),
     cronDeliver: cronDeliver.value,
     ...partial,
   });
