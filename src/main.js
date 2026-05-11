@@ -388,6 +388,9 @@ ipcMain.on('pet:set-window-bounds', (_event, x, y, width, height) => {
   const display = screen.getPrimaryDisplay();
   const maxW = display.workAreaSize.width;
   const maxH = display.workAreaSize.height;
+  // Keep window fully on-screen so top handles and rounded corners never disappear
+  x = Math.max(0, Math.min(x, maxW - 320));
+  y = Math.max(0, Math.min(y, maxH - 380));
   const newW = Math.max(320, Math.min(maxW - x, Math.round(width)));
   const newH = Math.max(380, Math.min(maxH - y, Math.round(height)));
   mainWindow.setBounds({ x: Math.round(x), y: Math.round(y), width: newW, height: newH });
