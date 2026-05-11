@@ -9,7 +9,8 @@
     "dist": "electron-builder",
     "dist:mac": "electron-builder --mac",
     "test": "node --test",
-    "smoke": "node scripts/smoke-hermes.js"
+    "smoke": "node scripts/smoke-hermes.js",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [
     "electron",
@@ -49,6 +50,7 @@
   },
   "devDependencies": {
     "electron": "^39.2.7",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.0.12",
+    "typescript": "^6.0.3"
   }
 }
