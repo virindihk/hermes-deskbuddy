@@ -1400,7 +1400,7 @@ let resizeCorner = '';
 let resizeStart = { x: 0, y: 0, w: 0, h: 0, winX: 0, winY: 0 };
 
 function setupResizeHandle(handle, corner) {
-  handle.addEventListener('pointerdown', async (event) => {
+  handle.addEventListener('pointerdown', (event) => {
     event.preventDefault();
     event.stopPropagation();
     resizingChat = true;
@@ -1410,17 +1410,18 @@ function setupResizeHandle(handle, corner) {
     resizeStart.y = event.screenY;
     resizeStart.w = chatPanel.offsetWidth;
     resizeStart.h = chatPanel.offsetHeight;
+    handle.setPointerCapture(event.pointerId);
 
-    try {
-      const bounds = await window.desktopPet.getWindowBounds();
+    window.desktopPet.getWindowBounds().then((bounds) => {
+      if (!resizingChat) return;
       resizeStart.winX = bounds.x;
       resizeStart.winY = bounds.y;
-    } catch (_e) {
+      resizeReady = true;
+    }).catch(() => {
       resizeStart.winX = 0;
       resizeStart.winY = 0;
-    }
-    resizeReady = true;
-    handle.setPointerCapture(event.pointerId);
+      resizeReady = true;
+    });
   });
 
   handle.addEventListener('pointermove', (event) => {
@@ -1460,17 +1461,27 @@ function setupResizeHandle(handle, corner) {
     chatPanel.style.width = `${newW}px`;
     chatPanel.style.height = `${newH}px`;
     window.desktopPet.setWindowBounds(Math.round(newX), Math.round(newY), Math.round(newW + 60), Math.round(newH + 170));
+
+    // Incremental: update start state for next pointermove so reverse drag works immediately after hitting a limit
+    resizeStart.x = event.screenX;
+    resizeStart.y = event.screenY;
+    resizeStart.w = newW;
+    resizeStart.h = newH;
+    resizeStart.winX = newX;
+    resizeStart.winY = newY;
   });
 
   handle.addEventListener('pointerup', (event) => {
     resizingChat = false;
     resizeReady = false;
+    resizeCorner = '';
     handle.releasePointerCapture(event.pointerId);
   });
 
   handle.addEventListener('pointercancel', (event) => {
     resizingChat = false;
     resizeReady = false;
+    resizeCorner = '';
     handle.releasePointerCapture(event.pointerId);
   });
 }
