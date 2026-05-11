@@ -47,6 +47,10 @@ const PET_STATES = {
 let petState = PET_STATES.IDLE;
 let petStateTimer = null;
 
+const PET_HIT_ALPHA_THRESHOLD = 24;
+let petHitMask = null;
+let petHitMaskUrl = '';
+
 /* ===== i18n ===== */
 const I18N = {
   zh: {
@@ -606,13 +610,110 @@ function appendMessage(role, text) {
   return el;
 }
 
-function updatePanelOffsets() {
-  const scale = parseFloat(getComputedStyle(pet).getPropertyValue('--pet-scale')) || 1;
-  const petVisualHeight = 138 * scale;
-  const bottomOffset = Math.max(220, Math.round(petVisualHeight + 32 + 20));
+const PET_BASE_SIZE = 138;
+const PET_RIGHT_OFFSET = 34;
+const PET_BOTTOM_OFFSET = 32;
+const PANEL_LEFT_MARGIN = 18;
+const PANEL_TOP_MARGIN = 18;
+const PANEL_GAP = 20;
+const MIN_PANEL_BOTTOM = PET_BASE_SIZE + PET_BOTTOM_OFFSET + PANEL_GAP;
+
+function getVisiblePanel() {
+  if (!chatPanel.classList.contains('hidden')) return chatPanel;
+  if (!settingsPanel.classList.contains('hidden')) return settingsPanel;
+  if (!cronPanel.classList.contains('hidden')) return cronPanel;
+  return null;
+}
+
+function getPetScale() {
+  return parseFloat(getComputedStyle(pet).getPropertyValue('--pet-scale')) || 1;
+}
+
+function getPetVisualSize() {
+  return PET_BASE_SIZE * getPetScale();
+}
+
+function getDesiredPanelBottom() {
+  return Math.max(
+    MIN_PANEL_BOTTOM,
+    Math.round(getPetVisualSize() + PET_BOTTOM_OFFSET + PANEL_GAP),
+  );
+}
+
+function getPanelLayout({ panelWidth = 0, panelHeight = 0 } = {}) {
+  const petVisualSize = getPetVisualSize();
+  const desiredBottom = getDesiredPanelBottom();
+  return {
+    desiredBottom,
+    petVisualSize,
+    requiredWidth: Math.ceil(Math.max(panelWidth, petVisualSize) + PET_RIGHT_OFFSET + PANEL_LEFT_MARGIN),
+    requiredHeight: Math.ceil(panelHeight + desiredBottom + PANEL_TOP_MARGIN),
+  };
+}
+
+function setPanelBottom(bottomOffset) {
   chatPanel.style.bottom = `${bottomOffset}px`;
   settingsPanel.style.bottom = `${bottomOffset}px`;
   cronPanel.style.bottom = `${bottomOffset}px`;
+}
+
+function fitPanelToTarget(panel, targetWidth, targetHeight, desiredBottom) {
+  const availablePanelWidth = Math.max(260, targetWidth - PET_RIGHT_OFFSET - PANEL_LEFT_MARGIN);
+  const availablePanelHeight = Math.max(200, targetHeight - desiredBottom - PANEL_TOP_MARGIN);
+
+  if (panel.offsetWidth > availablePanelWidth) {
+    panel.style.width = `${availablePanelWidth}px`;
+  }
+  if (panel.offsetHeight > availablePanelHeight) {
+    panel.style.height = `${availablePanelHeight}px`;
+  }
+
+  return {
+    panelWidth: Math.min(panel.offsetWidth, availablePanelWidth),
+    panelHeight: Math.min(panel.offsetHeight, availablePanelHeight),
+  };
+}
+
+async function updatePanelOffsets() {
+  const panel = getVisiblePanel();
+  let panelWidth = panel?.offsetWidth || 0;
+  let panelHeight = panel?.offsetHeight || 0;
+  const { desiredBottom, requiredWidth, requiredHeight } = getPanelLayout({ panelWidth, panelHeight });
+  let targetWidth = Math.max(window.innerWidth, requiredWidth);
+  let targetHeight = Math.max(window.innerHeight, requiredHeight);
+
+  if (window.innerWidth < requiredWidth || window.innerHeight < requiredHeight) {
+    try {
+      const bounds = await window.desktopPet.getWindowBounds();
+      const screenLeft = Number(window.screen?.availLeft) || 0;
+      const screenTop = Number(window.screen?.availTop) || 0;
+      const maxWidthKeepingRight = Math.max(bounds.width, bounds.x + bounds.width - screenLeft);
+      const maxHeightKeepingBottom = Math.max(bounds.height, bounds.y + bounds.height - screenTop);
+      targetWidth = Math.min(requiredWidth, maxWidthKeepingRight);
+      targetHeight = Math.min(requiredHeight, maxHeightKeepingBottom);
+      const deltaWidth = Math.max(0, targetWidth - bounds.width);
+      const deltaHeight = Math.max(0, targetHeight - bounds.height);
+      if (deltaWidth > 0 || deltaHeight > 0) {
+        window.desktopPet.setWindowBounds(
+          bounds.x - deltaWidth,
+          bounds.y - deltaHeight,
+          targetWidth,
+          targetHeight,
+        );
+      }
+    } catch (_error) {
+      targetWidth = window.innerWidth;
+      targetHeight = window.innerHeight;
+    }
+  }
+
+  if (panel) {
+    ({ panelWidth, panelHeight } = fitPanelToTarget(panel, targetWidth, targetHeight, desiredBottom));
+    const maxBottom = Math.max(0, targetHeight - panelHeight - PANEL_TOP_MARGIN);
+    setPanelBottom(Math.min(desiredBottom, maxBottom));
+  } else {
+    setPanelBottom(desiredBottom);
+  }
 }
 
 function setChatVisible(visible) {
@@ -622,6 +723,7 @@ function setChatVisible(visible) {
     setSettingsVisible(false);
     setCronVisible(false);
     setPetState(PET_STATES.LISTENING);
+    void updatePanelOffsets();
     setTimeout(() => input.focus(), 50);
     lastMouseCapture = true;
     window.desktopPet.setIgnoreMouseEvents(false);
@@ -639,7 +741,7 @@ function setSettingsVisible(visible) {
     chatPanel.classList.add('hidden');
     setCronVisible(false);
     setPetState(PET_STATES.LISTENING);
-    updatePanelOffsets();
+    void updatePanelOffsets();
     setTimeout(() => modelInput.focus(), 50);
     lastMouseCapture = true;
     window.desktopPet.setIgnoreMouseEvents(false);
@@ -657,7 +759,7 @@ function setCronVisible(visible) {
     chatPanel.classList.add('hidden');
     settingsPanel.classList.add('hidden');
     setPetState(PET_STATES.LISTENING);
-    updatePanelOffsets();
+    void updatePanelOffsets();
     loadCrons();
     lastMouseCapture = true;
     window.desktopPet.setIgnoreMouseEvents(false);
@@ -683,6 +785,79 @@ function toImageUrl(value) {
   if (!clean) return '';
   if (/^(file|https?|data):/i.test(clean)) return clean;
   return `file://${encodeURI(clean.replace(/\\/g, '/'))}`;
+}
+
+function setPetHitMask(imageUrl) {
+  if (petHitMaskUrl === imageUrl) return;
+  petHitMaskUrl = imageUrl;
+  petHitMask = null;
+  if (!imageUrl) return;
+
+  const image = new Image();
+  if (/^https?:/i.test(imageUrl)) image.crossOrigin = 'anonymous';
+  image.onload = () => {
+    try {
+      const canvas = document.createElement('canvas');
+      const width = image.naturalWidth || image.width;
+      const height = image.naturalHeight || image.height;
+      if (!width || !height) return;
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(image, 0, 0, width, height);
+      ctx.getImageData(0, 0, 1, 1);
+      petHitMask = { ctx, width, height };
+    } catch (_error) {
+      petHitMask = null;
+    }
+  };
+  image.onerror = () => {
+    petHitMask = null;
+  };
+  image.src = imageUrl;
+}
+
+function isPetVisualHit(x, y) {
+  const rect = pet.getBoundingClientRect();
+  if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return false;
+
+  if (petHitMask) {
+    const imageAspect = petHitMask.width / petHitMask.height;
+    const rectAspect = rect.width / rect.height;
+    let displayWidth = rect.width;
+    let displayHeight = rect.height;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    if (imageAspect > rectAspect) {
+      displayHeight = rect.width / imageAspect;
+      offsetY = (rect.height - displayHeight) / 2;
+    } else {
+      displayWidth = rect.height * imageAspect;
+      offsetX = (rect.width - displayWidth) / 2;
+    }
+
+    const localX = x - rect.left - offsetX;
+    const localY = y - rect.top - offsetY;
+    if (localX < 0 || localX > displayWidth || localY < 0 || localY > displayHeight) return false;
+
+    try {
+      const imageX = Math.max(0, Math.min(petHitMask.width - 1, Math.floor((localX / displayWidth) * petHitMask.width)));
+      const imageY = Math.max(0, Math.min(petHitMask.height - 1, Math.floor((localY / displayHeight) * petHitMask.height)));
+      const pixel = petHitMask.ctx.getImageData(imageX, imageY, 1, 1).data;
+      return pixel[3] >= PET_HIT_ALPHA_THRESHOLD;
+    } catch (_error) {
+      petHitMask = null;
+    }
+  }
+
+  const dx = (x - (rect.left + rect.width / 2)) / (rect.width * 0.46);
+  const dy = (y - (rect.top + rect.height * 0.56)) / (rect.height * 0.50);
+  return (dx * dx + dy * dy) <= 1;
+}
+
+function isPetPointerEvent(event) {
+  return isPetVisualHit(event.clientX, event.clientY);
 }
 
 function applySettings(settings = {}) {
@@ -752,6 +927,7 @@ function updatePetVisuals() {
   pet.classList.add(petState);
 
   const imageUrl = getStateImage(petState);
+  setPetHitMask(imageUrl);
   if (imageUrl) {
     petAvatar.style.backgroundImage = `url("${imageUrl.replace(/"/g, '\\"')}")`;
     petAvatar.classList.remove('hidden');
@@ -849,11 +1025,7 @@ async function loadSettings() {
 function applyPetScale(scale) {
   const s = Math.min(300, Math.max(50, Number(scale) || 100));
   pet.style.setProperty('--pet-scale', (s / 100).toString());
-  if (!chatPanel.classList.contains('hidden') ||
-      !settingsPanel.classList.contains('hidden') ||
-      !cronPanel.classList.contains('hidden')) {
-    updatePanelOffsets();
-  }
+  void updatePanelOffsets();
 }
 
 function updatePetName(name) {
@@ -1112,13 +1284,14 @@ async function sendMessage(text) {
 
 /* ===== Pet interactions ===== */
 pet.addEventListener('contextmenu', (event) => {
+  if (!isPetPointerEvent(event)) return;
   event.preventDefault();
   suppressClickAfterDrag = true;
   window.desktopPet.openSettingsMenu({ x: event.clientX, y: event.clientY });
 });
 
 pet.addEventListener('pointerdown', (event) => {
-  if (event.button !== 0) return;
+  if (event.button !== 0 || !isPetPointerEvent(event)) return;
   pointerDown = { x: event.screenX, y: event.screenY, time: Date.now() };
   lastPointer = { x: event.screenX, y: event.screenY };
   isDraggingPet = false;
@@ -1161,8 +1334,8 @@ pet.addEventListener('pointercancel', () => {
   suppressClickAfterDrag = false;
 });
 
-pet.addEventListener('click', async () => {
-  if (suppressClickAfterDrag) return;
+pet.addEventListener('click', async (event) => {
+  if (suppressClickAfterDrag || !isPetPointerEvent(event)) return;
   const visible = await window.desktopPet.toggleChat();
   if (visible) checkHermes();
 });
@@ -1383,7 +1556,9 @@ let mouseY = 0;
 function shouldCaptureAt(x, y) {
   const el = document.elementFromPoint(x, y);
   if (!el) return false;
-  if (el.closest('#pet, #chatPanel, #settingsPanel, #cronPanel')) return true;
+  const petEl = el.closest('#pet');
+  if (petEl) return isPetVisualHit(x, y);
+  if (el.closest('#chatPanel, #settingsPanel, #cronPanel')) return true;
   const interactive = el.closest('button, input, textarea, a, [role="button"]');
   if (interactive && interactive.closest('#chatPanel, #settingsPanel')) return true;
   return false;
@@ -1409,11 +1584,44 @@ document.addEventListener('mousemove', (event) => {
   }
 });
 
+window.addEventListener('resize', () => {
+  if (resizingChat) return;
+  if (!chatPanel.classList.contains('hidden') ||
+      !settingsPanel.classList.contains('hidden') ||
+      !cronPanel.classList.contains('hidden')) {
+    void updatePanelOffsets();
+  }
+});
+
 /* ===== Chat panel resize (TL, TR, BL) ===== */
 let resizingChat = false;
 let resizeReady = false;
 let resizeCorner = '';
-let resizeStart = { x: 0, y: 0, w: 0, h: 0, winX: 0, winY: 0 };
+let resizeStart = { x: 0, y: 0, w: 0, h: 0, winX: 0, winY: 0, winW: 0, winH: 0 };
+let pendingResizeFrame = 0;
+let pendingWindowBounds = null;
+
+function flushResizeWindowBounds() {
+  if (pendingResizeFrame) {
+    window.cancelAnimationFrame(pendingResizeFrame);
+    pendingResizeFrame = 0;
+  }
+  const bounds = pendingWindowBounds;
+  pendingWindowBounds = null;
+  if (!bounds) return;
+  window.desktopPet.setWindowBounds(bounds.x, bounds.y, bounds.width, bounds.height);
+}
+
+function scheduleResizeWindowBounds(x, y, width, height) {
+  pendingWindowBounds = {
+    x: Math.round(x),
+    y: Math.round(y),
+    width: Math.round(width),
+    height: Math.round(height),
+  };
+  if (pendingResizeFrame) return;
+  pendingResizeFrame = window.requestAnimationFrame(flushResizeWindowBounds);
+}
 
 function setupResizeHandle(handle, corner) {
   handle.addEventListener('pointerdown', (event) => {
@@ -1432,10 +1640,14 @@ function setupResizeHandle(handle, corner) {
       if (!resizingChat) return;
       resizeStart.winX = bounds.x;
       resizeStart.winY = bounds.y;
+      resizeStart.winW = bounds.width;
+      resizeStart.winH = bounds.height;
       resizeReady = true;
     }).catch(() => {
       resizeStart.winX = 0;
       resizeStart.winY = 0;
+      resizeStart.winW = window.innerWidth;
+      resizeStart.winH = window.innerHeight;
       resizeReady = true;
     });
   });
@@ -1447,43 +1659,64 @@ function setupResizeHandle(handle, corner) {
 
     let newW = resizeStart.w;
     let newH = resizeStart.h;
-    let newX = resizeStart.winX;
-    let newY = resizeStart.winY;
 
     if (corner.includes('left')) {
       newW = resizeStart.w - deltaX;
-      newX = resizeStart.winX + deltaX;
     } else {
       newW = resizeStart.w + deltaX;
     }
 
     if (corner.includes('top')) {
       newH = resizeStart.h - deltaY;
-      newY = resizeStart.winY + deltaY;
     } else {
       newH = resizeStart.h + deltaY;
     }
 
-    // Panel offset constants must stay in sync with CSS:
-    // .chat-panel { top: 18px }  and  .chat-panel.near-pet { bottom: 220px }
-    const PANEL_TOP_OFFSET = 18;
-    const PANEL_BOTTOM_OFFSET = 220;
-    const PANEL_HEIGHT_MARGIN = PANEL_TOP_OFFSET + PANEL_BOTTOM_OFFSET; // 238
-
-    const maxPanelH = window.screen.availHeight - PANEL_HEIGHT_MARGIN;
-    newW = Math.max(260, Math.min(640, newW));
+    const screenLeft = Number(window.screen?.availLeft) || 0;
+    const screenTop = Number(window.screen?.availTop) || 0;
+    const screenRight = screenLeft + (window.screen?.availWidth || resizeStart.winW);
+    const screenBottom = screenTop + (window.screen?.availHeight || resizeStart.winH);
+    const windowRight = resizeStart.winX + resizeStart.winW;
+    const windowBottom = resizeStart.winY + resizeStart.winH;
+    const minTargetW = 260 + PET_RIGHT_OFFSET + PANEL_LEFT_MARGIN;
+    const minTargetH = 200 + getDesiredPanelBottom() + PANEL_TOP_MARGIN;
+    const maxTargetW = corner.includes('left')
+      ? Math.max(minTargetW, windowRight - screenLeft)
+      : Math.max(minTargetW, screenRight - resizeStart.winX);
+    const maxTargetH = corner.includes('top')
+      ? Math.max(minTargetH, windowBottom - screenTop)
+      : Math.max(minTargetH, screenBottom - resizeStart.winY);
+    const desiredBottom = getDesiredPanelBottom();
+    const maxPanelW = Math.max(260, Math.min(640, maxTargetW - PET_RIGHT_OFFSET - PANEL_LEFT_MARGIN));
+    const maxPanelH = Math.max(200, maxTargetH - desiredBottom - PANEL_TOP_MARGIN);
+    newW = Math.max(260, Math.min(maxPanelW, newW));
     newH = Math.max(200, Math.min(maxPanelH, newH));
 
+    let layout = getPanelLayout({ panelWidth: newW, panelHeight: newH });
+    let targetWidth = Math.min(layout.requiredWidth, maxTargetW);
+    let targetHeight = Math.min(layout.requiredHeight, maxTargetH);
+    const availablePanelWidth = Math.max(260, targetWidth - PET_RIGHT_OFFSET - PANEL_LEFT_MARGIN);
+    const availablePanelHeight = Math.max(200, targetHeight - desiredBottom - PANEL_TOP_MARGIN);
+    newW = Math.min(newW, availablePanelWidth);
+    newH = Math.min(newH, availablePanelHeight);
+
+    layout = getPanelLayout({ panelWidth: newW, panelHeight: newH });
+    targetWidth = Math.min(layout.requiredWidth, maxTargetW);
+    targetHeight = Math.min(layout.requiredHeight, maxTargetH);
+    let newX = resizeStart.winX;
+    let newY = resizeStart.winY;
+
     if (corner.includes('left')) {
-      newX = resizeStart.winX + (resizeStart.w - newW);
+      newX = resizeStart.winX + (resizeStart.winW - targetWidth);
     }
     if (corner.includes('top')) {
-      newY = resizeStart.winY + (resizeStart.h - newH);
+      newY = resizeStart.winY + (resizeStart.winH - targetHeight);
     }
 
     chatPanel.style.width = `${newW}px`;
     chatPanel.style.height = `${newH}px`;
-    window.desktopPet.setWindowBounds(Math.round(newX), Math.round(newY), Math.round(newW + 60), Math.round(newH + PANEL_HEIGHT_MARGIN));
+    setPanelBottom(Math.min(layout.desiredBottom, Math.max(0, targetHeight - newH - PANEL_TOP_MARGIN)));
+    scheduleResizeWindowBounds(newX, newY, targetWidth, targetHeight);
 
     // Incremental: update start state for next pointermove so reverse drag works immediately after hitting a limit
     resizeStart.x = event.screenX;
@@ -1492,9 +1725,12 @@ function setupResizeHandle(handle, corner) {
     resizeStart.h = newH;
     resizeStart.winX = newX;
     resizeStart.winY = newY;
+    resizeStart.winW = targetWidth;
+    resizeStart.winH = targetHeight;
   });
 
   handle.addEventListener('pointerup', (event) => {
+    flushResizeWindowBounds();
     resizingChat = false;
     resizeReady = false;
     resizeCorner = '';
@@ -1502,6 +1738,7 @@ function setupResizeHandle(handle, corner) {
   });
 
   handle.addEventListener('pointercancel', (event) => {
+    flushResizeWindowBounds();
     resizingChat = false;
     resizeReady = false;
     resizeCorner = '';

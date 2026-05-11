@@ -275,7 +275,7 @@ function createWindow() {
     hasShadow: false,
     alwaysOnTop: settings.alwaysOnTop !== false,
     skipTaskbar: false,
-    title: 'DeskBuddy',
+    title: 'Hermes DeskBuddy',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -407,9 +407,9 @@ ipcMain.on('pet:set-window-bounds', (_event, x, y, width, height) => {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   const { workArea } = screen.getPrimaryDisplay();
   // Keep window inside the actual work area (accounts for menu bar / dock)
-  // Min window size = min panel (260×200) + CSS margins: left 18 + right 34 = 52 width, top 18 + bottom 220 = 238 height
+  // Min window size = min panel (260×200) + CSS margins: left 18 + right 34 = 52 width, top 18 + bottom 190 = 208 height
   const MIN_WIN_W = 260 + 52; // 312
-  const MIN_WIN_H = 200 + 238; // 438
+  const MIN_WIN_H = 200 + 190 + 18; // 408
   x = Math.max(workArea.x, Math.min(x, workArea.x + workArea.width - MIN_WIN_W));
   y = Math.max(workArea.y, Math.min(y, workArea.y + workArea.height - MIN_WIN_H));
   const newW = Math.max(MIN_WIN_W, Math.min(workArea.x + workArea.width - x, Math.round(width)));

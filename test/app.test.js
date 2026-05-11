@@ -30,11 +30,19 @@ test('renderer uses desktopPet bridge instead of Node integration', () => {
   assert.doesNotMatch(renderer, /require\(/);
 });
 
-test('main process targets Hermes OpenAI-compatible API', () => {
+test('main process talks to Hermes through the CLI', () => {
   const main = fs.readFileSync(path.join(root, 'src/main.js'), 'utf8');
-  assert.match(main, /127\.0\.0\.1:8642/);
-  assert.match(main, /\/v1\/chat\/completions/);
-  assert.match(main, /hermes-agent/);
+
+  assert.match(main, /const \{ spawn \} = require\('child_process'\)/);
+  assert.match(main, /function findHermesBinary\(\)/);
+  assert.match(main, /ipcMain\.handle\('hermes:health'/);
+  assert.match(main, /spawn\(findHermesBinary\(\), \['--version'\]/);
+  assert.match(main, /function runHermesChat\(text, sessionId = ''\)/);
+  assert.match(main, /const args = \['chat', '-q', text, '-Q'\]/);
+  assert.match(main, /args\.push\('-m', model\)/);
+  assert.match(main, /spawn\(findHermesBinary\(\), args/);
+  assert.doesNotMatch(main, /127\.0\.0\.1:8642/);
+  assert.doesNotMatch(main, /\/v1\/chat\/completions/);
 });
 
 test('pet is clickable and drag is handled manually', () => {
@@ -49,15 +57,78 @@ test('pet is clickable and drag is handled manually', () => {
   assert.match(main, /ipcMain\.handle\('pet:move-window-by'/);
 });
 
-test('app is branded as pet', () => {
+test('pet transparent pixels do not capture clicks', () => {
+  const renderer = fs.readFileSync(path.join(root, 'src/renderer/renderer.js'), 'utf8');
+
+  assert.match(renderer, /const PET_HIT_ALPHA_THRESHOLD = 24/);
+  assert.match(renderer, /function setPetHitMask\(/);
+  assert.match(renderer, /function isPetVisualHit\(/);
+  assert.match(renderer, /getImageData\(imageX, imageY, 1, 1\)/);
+  assert.match(renderer, /return pixel\[3\] >= PET_HIT_ALPHA_THRESHOLD/);
+  assert.match(renderer, /function isPetPointerEvent\(/);
+  assert.match(renderer, /if \(petEl\) return isPetVisualHit\(x, y\)/);
+  assert.match(renderer, /if \(!isPetPointerEvent\(event\)\) return/);
+});
+
+test('scaled pet panels expand the transparent window instead of clipping', () => {
+  const renderer = fs.readFileSync(path.join(root, 'src/renderer/renderer.js'), 'utf8');
+
+  assert.match(renderer, /const PET_BASE_SIZE = 138/);
+  assert.match(renderer, /const PANEL_TOP_MARGIN = 18/);
+  assert.match(renderer, /function getVisiblePanel\(\)/);
+  assert.match(renderer, /async function updatePanelOffsets\(\)/);
+  assert.match(renderer, /requiredHeight:\s*Math\.ceil\(panelHeight \+ desiredBottom \+ PANEL_TOP_MARGIN\)/);
+  assert.match(renderer, /window\.desktopPet\.getWindowBounds\(\)/);
+  assert.match(renderer, /bounds\.y - deltaHeight/);
+  assert.match(renderer, /bounds\.x - deltaWidth/);
+  assert.match(renderer, /window\.desktopPet\.setWindowBounds/);
+  assert.match(renderer, /Math\.min\(desiredBottom, maxBottom\)/);
+});
+
+test('scaled pet stays anchored and panels stay close while resizing', () => {
+  const styles = fs.readFileSync(path.join(root, 'src/renderer/styles.css'), 'utf8');
+  const renderer = fs.readFileSync(path.join(root, 'src/renderer/renderer.js'), 'utf8');
+  const main = fs.readFileSync(path.join(root, 'src/main.js'), 'utf8');
+
+  assert.match(styles, /\.pet\s*\{[\s\S]*?transform-origin:\s*bottom right/);
+  assert.match(styles, /\.chat-panel\.near-pet\s*\{[\s\S]*?bottom:\s*190px/);
+  assert.match(renderer, /const PANEL_GAP = 20/);
+  assert.match(renderer, /function getDesiredPanelBottom\(\)/);
+  assert.match(renderer, /Math\.round\(getPetVisualSize\(\) \+ PET_BOTTOM_OFFSET \+ PANEL_GAP\)/);
+  assert.match(renderer, /function getPanelLayout\(/);
+  assert.match(renderer, /Math\.max\(panelWidth, petVisualSize\)/);
+  assert.match(renderer, /getPanelLayout\(\{ panelWidth: newW, panelHeight: newH \}\)/);
+  assert.match(renderer, /const maxTargetH = corner\.includes\('top'\)/);
+  assert.match(renderer, /const maxTargetW = corner\.includes\('left'\)/);
+  assert.match(renderer, /const availablePanelHeight = Math\.max\(200, targetHeight - desiredBottom - PANEL_TOP_MARGIN\)/);
+  assert.match(renderer, /panel\.style\.height = `\$\{availablePanelHeight\}px`/);
+  assert.match(renderer, /window\.addEventListener\('resize'/);
+  assert.doesNotMatch(renderer, /const PANEL_BOTTOM_OFFSET = 220/);
+  assert.match(main, /MIN_WIN_H = 200 \+ 190/);
+});
+
+test('chat panel resize batches window bounds to avoid flicker', () => {
+  const renderer = fs.readFileSync(path.join(root, 'src/renderer/renderer.js'), 'utf8');
+
+  assert.match(renderer, /function scheduleResizeWindowBounds\(/);
+  assert.match(renderer, /window\.requestAnimationFrame\(flushResizeWindowBounds\)/);
+  assert.match(renderer, /window\.cancelAnimationFrame\(pendingResizeFrame\)/);
+  assert.match(renderer, /function flushResizeWindowBounds\(\)/);
+  assert.match(renderer, /if \(resizingChat\) return;/);
+  assert.match(renderer, /scheduleResizeWindowBounds\(newX, newY, targetWidth, targetHeight\)/);
+  assert.match(renderer, /flushResizeWindowBounds\(\)/);
+});
+
+test('app is branded as Hermes DeskBuddy', () => {
   const html = fs.readFileSync(path.join(root, 'src/renderer/index.html'), 'utf8');
   const main = fs.readFileSync(path.join(root, 'src/main.js'), 'utf8');
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
-  assert.equal(pkg.name, 'pet');
-  assert.match(html, /<title>pet<\/title>/);
-  assert.match(html, /class="title">pet<\/div>/);
-  assert.match(main, /title:\s*'pet'/);
+  assert.equal(pkg.name, 'hermes-deskbuddy');
+  assert.equal(pkg.build.appId, 'com.leo.hermes-deskbuddy');
+  assert.equal(pkg.build.productName, 'Hermes DeskBuddy');
+  assert.match(html, /<title>Hermes DeskBuddy<\/title>/);
+  assert.match(main, /title:\s*'Hermes DeskBuddy'/);
 });
 
 test('right-click opens a pet settings menu through the preload bridge', () => {
@@ -88,7 +159,9 @@ test('pet settings support custom image and model persistence', () => {
   assert.match(main, /ipcMain\.handle\('pet:get-settings'/);
   assert.match(main, /ipcMain\.handle\('pet:save-settings'/);
   assert.match(main, /ipcMain\.handle\('pet:choose-image'/);
-  assert.match(main, /model:\s*getSettings\(\)\.model/);
+  assert.match(main, /model:\s*String\(settings\.model \|\| DEFAULT_SETTINGS\.model\)\.trim\(\) \|\| DEFAULT_SETTINGS\.model/);
+  assert.match(main, /cachedSettings = normalizeSettings\(\{ \.\.\.getSettings\(\), \.\.\.partialSettings \}\)/);
+  assert.match(main, /const model = getSettings\(\)\.model/);
   assert.match(preload, /getSettings/);
   assert.match(preload, /saveSettings/);
   assert.match(preload, /choosePetImage/);

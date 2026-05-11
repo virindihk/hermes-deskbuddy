@@ -49,6 +49,7 @@ textarea {
   background: transparent;
   cursor: pointer;
   -webkit-app-region: no-drag;
+  transform-origin: bottom right;
   transition: right 200ms ease, bottom 200ms ease, left 200ms ease, top 200ms ease;
   --pet-scale: 1;
 }
@@ -225,7 +226,7 @@ textarea {
   left: auto;
   right: 34px;
   top: auto;
-  bottom: 220px;
+  bottom: 190px;
 }
 
 .resize-handle {
@@ -295,7 +296,7 @@ textarea {
   left: auto;
   right: 34px;
   top: auto;
-  bottom: 220px;
+  bottom: 190px;
 }
 
 .cron-panel {
@@ -306,7 +307,7 @@ textarea {
   left: auto;
   right: 34px;
   top: auto;
-  bottom: 220px;
+  bottom: 190px;
 }
 
 .chat-panel.hidden,
