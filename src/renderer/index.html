@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hermes DeskBuddy</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.1/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  </head>
+  <body>
+    <main class="stage">
+      <section id="chatPanel" class="chat-panel hidden" aria-label="pet chat panel">
+        <header class="chat-header">
+          <div id="chatTitle" class="title">Hermes</div>
+          <div class="chat-actions">
+            <button id="screenCapture" class="icon-button" type="button" title="框选截图">◉</button>
+            <button id="closeChat" class="icon-button" type="button" title="收起">×</button>
+          </div>
+          <select id="sessionSelect" class="session-select" title="切换会话">
+            <option value="">新建会话...</option>
+          </select>
+          <div id="status" class="status">检查 Hermes 中...</div>
+        </header>
+
+        <div id="messages" class="messages">
+          <div class="message assistant">嗨 Leo，我在桌面上啦。左键聊天，右键打开设定。</div>
+        </div>
+
+        <form id="composer" class="composer">
+          <div id="attachmentPreview" class="attachment-preview hidden" aria-live="polite"></div>
+          <textarea id="input" rows="2" placeholder="输入消息，Enter 发送，Shift+Enter 换行"></textarea>
+          <div class="composer-actions">
+            <button id="attachFile" class="attachment-button" type="button" title="添加附件">＋</button>
+            <input id="attachmentInput" class="attachment-input" type="file" />
+            <button id="send" type="submit">发送</button>
+          </div>
+        </form>
+        <div id="resizeTL" class="resize-handle resize-tl" title="拖拽调整大小"></div>
+        <div id="resizeTR" class="resize-handle resize-tr" title="拖拽调整大小"></div>
+        <div id="resizeBL" class="resize-handle resize-bl" title="拖拽调整大小"></div>
+      </section>
+
+      <section id="settingsPanel" class="settings-panel hidden" aria-label="pet settings panel">
+        <header class="settings-header">
+          <div>
+            <div id="settingsTitle" class="title">Hermes 设定</div>
+            <div class="settings-subtitle">图片、模型</div>
+          </div>
+          <button id="closeSettings" class="icon-button" title="关闭设定">×</button>
+        </header>
+
+        <div class="settings-body">
+          <section class="settings-card">
+            <label for="petName">名字</label>
+            <input id="petName" type="text" placeholder="给你的 pet 起个名字" />
+            <label for="petScale">大小</label>
+            <div class="scale-row">
+              <input id="petScale" type="range" min="50" max="300" value="100" />
+              <span id="petScaleValue">100%</span>
+            </div>
+          </section>
+
+          <section class="settings-card">
+            <label>Pet 状态图片</label>
+            <div class="image-row">
+              <input id="petImage" type="text" placeholder="平常状态图片路径" />
+              <button id="chooseImage" type="button">选择</button>
+            </div>
+            <div class="image-row">
+              <input id="listeningImage" type="text" placeholder="打开聊天/设定时图片路径" />
+              <button id="chooseListeningImage" type="button">选择</button>
+            </div>
+            <div class="image-row">
+              <input id="thinkingImage" type="text" placeholder="Hermes 思考时图片路径" />
+              <button id="chooseThinkingImage" type="button">选择</button>
+            </div>
+            <div class="image-row">
+              <input id="happyImage" type="text" placeholder="回复完成时图片路径" />
+              <button id="chooseHappyImage" type="button">选择</button>
+            </div>
+            <button id="resetAllImages" type="button" class="ghost-button">恢复默认</button>
+          </section>
+
+          <section class="settings-card">
+            <label for="providerSelect">Provider</label>
+            <select id="providerSelect" class="session-select provider-select">
+              <option value="">自定义...</option>
+            </select>
+            <label for="modelInput">Model</label>
+            <select id="modelSelect" class="session-select model-select">
+              <option value="">自定义...</option>
+            </select>
+            <input id="modelInput" type="text" placeholder="如 gpt-4o、claude-sonnet-4" />
+            <label for="conversationMode">对话模式</label>
+            <select id="conversationMode" class="session-select conversation-mode-select">
+              <option value="cli">Hermes CLI Session</option>
+              <option value="api">独立 API Server</option>
+            </select>
+            <label for="apiBaseUrl">API Server 地址</label>
+            <input id="apiBaseUrl" type="text" placeholder="http://127.0.0.1:8642" />
+            <div class="session-row">
+              <div class="session-info">
+                <span class="api-session-label">API 会话</span>
+                <span id="apiConversationIdDisplay" class="session-id">—</span>
+              </div>
+            </div>
+            <label for="hermesPath">Hermes 路径</label>
+            <input id="hermesPath" type="text" placeholder="留空则自动查找" />
+            <div class="session-row">
+              <div class="session-info">
+                <span class="session-label">当前会话</span>
+                <span id="sessionIdDisplay" class="session-id">—</span>
+              </div>
+              <button id="newSession" type="button" class="ghost-button">新建会话</button>
+            </div>
+            <button id="saveSettings" type="button">保存设定</button>
+          </section>
+
+          <div id="settingsMessage" class="settings-message" role="status"></div>
+        </div>
+      </section>
+
+      <section id="cronPanel" class="cron-panel hidden" aria-label="cron management panel">
+        <header class="cron-header">
+          <div class="title">Cron 管理</div>
+          <button id="closeCron" class="icon-button" title="关闭">×</button>
+        </header>
+        <div class="cron-body">
+          <div id="cronList" class="cron-list">
+            <div class="cron-empty">加载中...</div>
+          </div>
+          <div class="cron-divider"></div>
+          <form id="cronForm" class="cron-form">
+            <label for="cronSchedule">Cron 安排</label>
+            <input id="cronSchedule" type="text" placeholder="30m / every 2h / 0 9 * * *" />
+            <label for="cronPrompt">任务内容</label>
+            <textarea id="cronPrompt" rows="3" placeholder="写一个自包含的定时任务说明"></textarea>
+            <label for="cronDeliver">投递位置</label>
+            <input id="cronDeliver" type="text" placeholder="local / origin / telegram:..." />
+            <label for="cronName">任务名，可选</label>
+            <input id="cronName" type="text" placeholder="pet reminder" />
+            <button id="createCron" type="submit">添加 cron</button>
+            <div id="cronMessage" class="cron-message" role="status"></div>
+          </form>
+        </div>
+      </section>
+
+      <button id="pet" class="pet" title="左键聊天，右键打开设定，拖动我移动">
+        <div id="petAvatar" class="pet-avatar hidden"></div>
+        <div class="default-pet">
+          <div class="ears">
+            <span></span>
+            <span></span>
+          </div>
+          <div class="face">
+            <div class="eyes">
+              <span></span>
+              <span></span>
+            </div>
+            <div class="mouth">ω</div>
+            <div id="bubble" class="bubble">点我聊天</div>
+          </div>
+          <div class="tail"></div>
+        </div>
+      </button>
+
+    </main>
+
+    <script src="modules/i18n.js"></script>
+    <script src="modules/pet-hit-test.js"></script>
+    <script src="modules/panel-layout.js"></script>
+    <script src="renderer.js"></script>
+  </body>
+</html>

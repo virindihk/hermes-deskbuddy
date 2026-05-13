@@ -1,0 +1,60 @@
+{
+  "name": "hermes-deskbuddy",
+  "version": "0.2.1",
+  "description": "A transparent desktop companion for Hermes Agent with chat, cron management, model switching, and a scale-aware pet UI.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "test": "node --test",
+    "smoke": "node scripts/smoke-hermes.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "electron",
+    "desktop-pet",
+    "hermes-agent"
+  ],
+  "author": "Leo + Gege",
+  "license": "MIT",
+  "build": {
+    "appId": "com.leo.hermes-deskbuddy",
+    "productName": "Hermes DeskBuddy",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.utilities",
+      "icon": "build/icon.icns"
+    },
+    "dmg": {
+      "sign": false
+    }
+  },
+  "devDependencies": {
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12",
+    "typescript": "^6.0.3"
+  }
+}
